@@ -55,6 +55,7 @@ def serialize_components(components: List[Any]) -> List[Dict[str, Any]]:
             "resistance": getattr(component, "resistance_value", 0.0),
             "capacitance": getattr(component, "capacitance", 0.0),
             "locked": getattr(component, "locked", False),
+            "orientation": getattr(component, "orientation", "horizontal"),
         })
     return serialized
 

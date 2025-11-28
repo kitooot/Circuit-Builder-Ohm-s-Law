@@ -9,11 +9,31 @@ AnalysisDict = Dict[str, object]
 ComponentMetrics = Dict[CircuitComponent, Dict[str, float]]
 Adjacency = Dict[CircuitComponent, Set[CircuitComponent]]
 
+PASSIVE_LOAD_TYPES: Set[str] = {
+    "resistor",
+    "bulb",
+    "led",
+    "diode",
+    "ammeter",
+    "voltmeter",
+}
+
+TERMINAL_REQUIREMENTS: Dict[str, int] = {
+    "ground": 1,
+}
+
 
 def expected_connections(component: CircuitComponent) -> int:
-    if component.type in ("battery", "resistor", "bulb", "switch"):
-        return 2
-    return 2
+    return TERMINAL_REQUIREMENTS.get(component.type, 2)
+
+
+def _is_passive_load(component: CircuitComponent) -> bool:
+    if component.type in PASSIVE_LOAD_TYPES:
+        return component.get_resistance() > 0
+    if component.type == "battery":
+        return False
+    resistance = component.get_resistance()
+    return resistance > 0
 
 
 def classify_circuit(
@@ -87,9 +107,9 @@ def compute_circuit_metrics(
         return summary, per_component, issues
 
     if not loads:
-        issues.append("No resistive load connected to the circuit")
+        issues.append("No passive load connected to the circuit")
         summary["status_override"] = "Alert"
-        summary["status_detail_override"] = "⚠️ Add a resistor or bulb"
+        summary["status_detail_override"] = "⚠️ Add a resistor, bulb, or other load"
         return summary, per_component, issues
 
     positive_loads = [comp for comp in loads if comp.get_resistance() > 0]
@@ -247,7 +267,7 @@ def analyze_circuit(
             continue
 
         batteries = [comp for comp in candidate_group if comp.type == "battery"]
-        loads = [comp for comp in candidate_group if comp.type in ("resistor", "bulb")]
+        loads = [comp for comp in candidate_group if _is_passive_load(comp)]
 
         if not batteries or not loads:
             continue
