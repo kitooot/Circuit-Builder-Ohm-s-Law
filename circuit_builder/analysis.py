@@ -22,6 +22,8 @@ TERMINAL_REQUIREMENTS: Dict[str, int] = {
     "ground": 1,
 }
 
+SWITCH_TYPES: Set[str] = {"switch", "switch_spst", "switch_spdt"}
+
 
 def expected_connections(component: CircuitComponent) -> int:
     return TERMINAL_REQUIREMENTS.get(component.type, 2)
@@ -34,6 +36,16 @@ def _is_passive_load(component: CircuitComponent) -> bool:
         return False
     resistance = component.get_resistance()
     return resistance > 0
+
+
+def _is_switch(component: CircuitComponent) -> bool:
+    return component.type in SWITCH_TYPES
+
+
+def _is_switch_closed(component: CircuitComponent) -> bool:
+    if not _is_switch(component):
+        return True
+    return getattr(component, "switch_closed", True)
 
 
 def classify_circuit(
@@ -240,6 +252,8 @@ def analyze_circuit(
         required = expected_connections(component)
         if connected < required:
             analysis["issues"].append(f"{component.display_label}: {connected}/{required} terminals connected")
+        if _is_switch(component) and not _is_switch_closed(component):
+            analysis["issues"].append(f"{component.display_label} is open; close it to complete the circuit")
 
     visited: Set[CircuitComponent] = set()
     active_group: Optional[List[CircuitComponent]] = None
@@ -268,6 +282,9 @@ def analyze_circuit(
 
         batteries = [comp for comp in candidate_group if comp.type == "battery"]
         loads = [comp for comp in candidate_group if _is_passive_load(comp)]
+
+        if any(_is_switch(comp) and not _is_switch_closed(comp) for comp in candidate_group):
+            continue
 
         if not batteries or not loads:
             continue

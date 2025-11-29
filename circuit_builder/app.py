@@ -41,6 +41,10 @@ class OhmsLawApp:
         self.circuit_power_var = tk.StringVar(value="Power: — | Resistance: —")
         self.circuit_counts_var = tk.StringVar(value="Components: 0 | Wires: 0")
         self.circuit_path_var = tk.StringVar(value="Active path: —")
+        self.status_label: Optional[tk.Label] = None
+        self.functions_display: Optional[tk.Label] = None
+        self.latest_analysis: Dict[str, Any] = {}
+        self._auto_snap_guard = False
 
         self._create_widgets()
         self._draw_grid()
@@ -177,7 +181,34 @@ class OhmsLawApp:
         canvas_frame.grid_rowconfigure(1, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
 
-        tk.Label(canvas_frame, text="Circuit Canvas", font=("Arial", 12, "bold"), bg="#f0f0f0").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        canvas_header = tk.Frame(canvas_frame, bg="#f0f0f0")
+        canvas_header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        tk.Label(canvas_header, text="Circuit Canvas", font=("Arial", 12, "bold"), bg="#f0f0f0", fg="#1f2937").pack(side=tk.LEFT)
+
+        controls_frame = tk.Frame(canvas_header, bg="#f0f0f0")
+        controls_frame.pack(side=tk.RIGHT)
+
+        reset_button = tk.Button(
+            controls_frame,
+            text="♻ Reset Circuit",
+            font=("Arial", 10, "bold"),
+            bg="#dc2626",
+            fg="white",
+            width=12,
+            command=self._reset_circuit,
+            relief=tk.RAISED,
+            bd=2,
+        )
+        reset_button.pack(side=tk.RIGHT, padx=(5, 0))
+
+        self.status_label = tk.Label(
+            controls_frame,
+            textvariable=self.status,
+            font=("Arial", 10, "bold"),
+            bg="#f0f0f0",
+            fg="#9ca3af",
+        )
+        self.status_label.pack(side=tk.RIGHT, padx=(0, 10))
 
         self.canvas = tk.Canvas(canvas_frame, bg="white", width=CANVAS_WIDTH, height=CANVAS_HEIGHT, relief=tk.SUNKEN, bd=2)
         self.canvas.grid(row=1, column=0, sticky="nsew")
@@ -337,60 +368,7 @@ class OhmsLawApp:
             except tk.TclError:
                 pass
 
-        bottom_frame = tk.Frame(self.root, bg="#ffffff", relief=tk.RAISED, bd=1)
-        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=0, pady=0)
-        bottom_frame.grid_columnconfigure(0, weight=0)
-        bottom_frame.grid_columnconfigure(1, weight=1)
-        bottom_frame.grid_columnconfigure(2, weight=0)
-        bottom_frame.grid_rowconfigure(0, weight=0)
-        bottom_frame.grid_rowconfigure(1, weight=0)
-
-        btn_frame = tk.Frame(bottom_frame, bg="#ffffff")
-        btn_frame.grid(row=0, column=0, sticky="w", padx=20, pady=10)
-
-        tk.Button(
-            btn_frame,
-            text="♻ Reset Circuit",
-            font=("Arial", 10, "bold"),
-            bg="#dc2626",
-            fg="white",
-            width=12,
-            command=self._reset_circuit,
-            relief=tk.RAISED,
-            bd=2,
-        ).pack(side=tk.LEFT, padx=5)
-
-        tk.Button(
-            btn_frame,
-            text="Circuit Functions",
-            font=("Arial", 10, "bold"),
-            bg="#2563eb",
-            fg="white",
-            width=14,
-            command=self._show_functions,
-            relief=tk.RAISED,
-            bd=2,
-        ).pack(side=tk.LEFT, padx=5)
-
-        status_frame = tk.Frame(bottom_frame, bg="#ffffff")
-        status_frame.grid(row=0, column=2, sticky="e", padx=20, pady=10)
-        tk.Label(status_frame, text="Status:", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(side=tk.LEFT, padx=5)
-        self.status_label = tk.Label(status_frame, textvariable=self.status, font=("Arial", 10, "bold"), bg="#ffffff")
-        self.status_label.pack(side=tk.LEFT)
-
-        self.functions_display = tk.Label(
-            bottom_frame,
-            text="Double-click the quick tips or circuit insight panels for more details.",
-            font=("Arial", 9),
-            bg="#ffffff",
-            fg="#1f2937",
-            justify=tk.LEFT,
-            wraplength=840,
-            anchor="w",
-        )
-        self.functions_display.grid(row=1, column=0, columnspan=3, sticky="we", padx=20, pady=(0, 10))
-
-        self._update_analysis_panel({
+        initial_analysis = {
             "component_count": 0,
             "wire_count": 0,
             "active_component_count": 0,
@@ -404,7 +382,24 @@ class OhmsLawApp:
             "total_power": 0.0,
             "path_description": "—",
             "issues": [],
-        })
+        }
+        self._update_analysis_panel(initial_analysis)
+        self.latest_analysis = dict(initial_analysis)
+        self.latest_analysis = {
+            "component_count": 0,
+            "wire_count": 0,
+            "active_component_count": 0,
+            "active_wire_count": 0,
+            "type": "Open",
+            "status": "Open",
+            "status_detail": "⚫ Open Circuit",
+            "total_voltage": 0.0,
+            "total_current": 0.0,
+            "total_resistance": 0.0,
+            "total_power": 0.0,
+            "path_description": "—",
+            "issues": [],
+        }
 
     def _set_palette_tile_state(self, tile: tk.Frame, hover: bool) -> None:
         base_bg = "#f8fafc"
@@ -531,7 +526,8 @@ class OhmsLawApp:
     def _show_functions(self) -> None:
         lines = self._feature_lines()
         message = "\n".join(f"• {line}" for line in lines)
-        self.functions_display.configure(text=message)
+        if self.functions_display is not None:
+            self.functions_display.configure(text=message)
         if hasattr(self, "help_frame"):
             self._flash_panel(self.help_frame)
         self._open_modal("Circuit Functions", lines, accent="#2563eb")
@@ -539,7 +535,8 @@ class OhmsLawApp:
     def _show_tips_dialog(self, _event: Optional[tk.Event] = None) -> None:
         lines = self._feature_lines()
         message = "\n".join(f"• {line}" for line in lines)
-        self.functions_display.configure(text=message)
+        if self.functions_display is not None:
+            self.functions_display.configure(text=message)
         if hasattr(self, "help_frame"):
             self._flash_panel(self.help_frame, highlight_bg="#0ea5e9")
         self._open_modal("Circuit Quick Tips", lines, accent="#0ea5e9")
@@ -555,9 +552,25 @@ class OhmsLawApp:
         ]
 
     def _show_insight_info(self, _event: Optional[tk.Event] = None) -> None:
-        lines = self._insight_lines()
+        if self.latest_analysis:
+            lines: List[str] = [
+                self.circuit_type_var.get(),
+                self.circuit_status_var.get(),
+                self.circuit_metrics_var.get(),
+                self.circuit_power_var.get(),
+                self.circuit_counts_var.get(),
+                self.circuit_path_var.get(),
+            ]
+            issues_text = self.circuit_issue_label.cget("text") if self.circuit_issue_label else ""
+            issue_lines = [entry.lstrip("• ").strip() for entry in issues_text.splitlines() if entry.strip()]
+            if issue_lines:
+                lines.append("Issues:")
+                lines.extend(issue_lines)
+        else:
+            lines = self._insight_lines()
         message = "\n".join(f"• {line}" for line in lines)
-        self.functions_display.configure(text=message)
+        if self.functions_display is not None:
+            self.functions_display.configure(text=message)
         if hasattr(self, "analysis_frame"):
             self._flash_panel(self.analysis_frame, highlight_bg="#fde68a")
         self._open_modal("Circuit Insight Guide", lines, accent="#f59e0b")
@@ -595,6 +608,10 @@ class OhmsLawApp:
         self.canvas.delete("grid")
         self._draw_grid()
 
+    def _register_component(self, component: CircuitComponent) -> None:
+        component.on_request_duplicate = self._duplicate_component
+        self.components.append(component)
+
     def _add_component(self, comp_type: str) -> None:
         canvas_width = int(getattr(self, "canvas_width", CANVAS_WIDTH))
         canvas_height = int(getattr(self, "canvas_height", CANVAS_HEIGHT))
@@ -621,8 +638,62 @@ class OhmsLawApp:
             self._on_component_changed,
             self._on_component_removed,
         )
-        self.components.append(component)
+        self._register_component(component)
         self.component_counter += 1
+        self._calculate_circuit()
+
+    def _duplicate_component(self, component: CircuitComponent) -> None:
+        canvas_width = int(getattr(self, "canvas_width", CANVAS_WIDTH))
+        canvas_height = int(getattr(self, "canvas_height", CANVAS_HEIGHT))
+        comp_type = component.type
+
+        self.component_type_counters[comp_type] = self.component_type_counters.get(comp_type, 0) + 1
+        index = self.component_type_counters[comp_type]
+        display_label = f"{comp_type.capitalize()} {index}" if comp_type not in COMPONENT_PREFIX else f"{comp_type.title()} {index}"
+        prefix = COMPONENT_PREFIX.get(comp_type, comp_type[:1].upper())
+        code_label = f"{prefix}{index}"
+
+        width, height = component._current_dimensions()
+        offset_x = component.x + GRID_SIZE * 4
+        offset_y = component.y + GRID_SIZE * 2
+        new_x = int(max(0, min(offset_x, canvas_width - width)))
+        new_y = int(max(0, min(offset_y, canvas_height - height)))
+        new_x = round(new_x / GRID_SIZE) * GRID_SIZE
+        new_y = round(new_y / GRID_SIZE) * GRID_SIZE
+        new_x = int(max(0, min(new_x, canvas_width - width)))
+        new_y = int(max(0, min(new_y, canvas_height - height)))
+
+        duplicate = CircuitComponent(
+            self.canvas,
+            comp_type,
+            new_x,
+            new_y,
+            self.component_counter,
+            display_label,
+            code_label,
+            self._on_component_changed,
+            self._on_component_removed,
+        )
+        self.component_counter += 1
+
+        duplicate.voltage_value = component.voltage_value
+        duplicate.resistance_value = component.resistance_value
+        duplicate.capacitance = component.capacitance
+        duplicate.forward_voltage = component.forward_voltage
+        duplicate.switch_closed = component.switch_closed
+        duplicate.locked = component.locked
+
+        if component.orientation != duplicate.orientation:
+            duplicate.rotate()
+        else:
+            duplicate._draw_visual_representation()
+
+        if duplicate.locked:
+            duplicate._build_context_menu()
+        duplicate.apply_theme(duplicate.theme)
+        duplicate._update_detail_text()
+
+        self._register_component(duplicate)
         self._calculate_circuit()
 
     def _add_wire(self) -> None:
@@ -652,12 +723,37 @@ class OhmsLawApp:
         self._calculate_circuit()
 
     def _on_wire_changed(self, _wire: CircuitWire) -> None:
+        if self._auto_snap_guard:
+            return
         self._calculate_circuit()
 
     def _on_wire_removed(self, wire: CircuitWire) -> None:
         if wire in self.wires:
             self.wires.remove(wire)
         self._calculate_circuit()
+
+    def _auto_snap_connections(self) -> None:
+        if self._auto_snap_guard:
+            return
+        self._auto_snap_guard = True
+        try:
+            for wire in self.wires:
+                for endpoint in ("a", "b"):
+                    if wire.attachments.get(endpoint):
+                        continue
+                    if wire.linked_endpoints.get(endpoint):
+                        continue
+                    position = wire.positions.get(endpoint)
+                    if not position:
+                        continue
+                    x, y = position
+                    target, identifier, snap_point = self._find_nearest_connector(x, y, exclude_wire=wire, exclude_endpoint=endpoint)
+                    if isinstance(target, CircuitComponent) and isinstance(identifier, str):
+                        wire.attach_to_component(endpoint, target, identifier, snap_point)
+                    elif isinstance(target, CircuitWire):
+                        wire.attach_to_wire(endpoint, target, identifier, snap_point)
+        finally:
+            self._auto_snap_guard = False
 
     def _find_nearest_connector(
         self,
@@ -666,11 +762,20 @@ class OhmsLawApp:
         exclude_wire: Optional[CircuitWire] = None,
         exclude_endpoint: Optional[str] = None,
         threshold: float = 36.0,
-    ) -> tuple[Any | None, Optional[str], tuple[float, float]]:
+    ) -> tuple[Any | None, Any, tuple[float, float]]:
         target: Any | None = None
-        identifier: Optional[str] = None
+        identifier: Any = None
         snap_point: tuple[float, float] = (x, y)
         best_distance = threshold
+
+        def project_point(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> tuple[float, float]:
+            dx = bx - ax
+            dy = by - ay
+            if dx == 0 and dy == 0:
+                return ax, ay
+            t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+            t = max(0.0, min(1.0, t))
+            return ax + t * dx, ay + t * dy
 
         for component in self.components:
             for side in ("left", "right", "top", "bottom"):
@@ -695,6 +800,29 @@ class OhmsLawApp:
                     target = wire
                     identifier = ep
                     snap_point = (wx, wy)
+
+            path_points: List[Tuple[float, float]]
+            if hasattr(wire, "path_points"):
+                path_points = list(wire.path_points())
+            else:
+                path_points = [
+                    wire.positions.get("a", (0.0, 0.0)),
+                    wire.positions.get("b", (0.0, 0.0)),
+                ]
+            for idx in range(len(path_points) - 1):
+                ax, ay = path_points[idx]
+                bx, by = path_points[idx + 1]
+                px, py = project_point(x, y, ax, ay, bx, by)
+                dist = ((px - x) ** 2 + (py - y) ** 2) ** 0.5
+                if dist <= best_distance:
+                    end_a_dist = ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+                    end_b_dist = ((px - bx) ** 2 + (py - by) ** 2) ** 0.5
+                    if min(end_a_dist, end_b_dist) < 6.0:
+                        continue
+                    best_distance = dist
+                    target = wire
+                    identifier = ("segment", px, py)
+                    snap_point = (px, py)
 
         return target, identifier, snap_point
 
@@ -767,6 +895,7 @@ class OhmsLawApp:
         self.circuit_issue_label.config(text=issues_text)
 
     def _calculate_circuit(self) -> None:
+        self._auto_snap_connections()
         analysis, active_group, active_wires, component_metrics = analyze_circuit(self.components, self.wires)
 
         self._update_component_highlights(active_group)
@@ -817,15 +946,27 @@ class OhmsLawApp:
 
             status_color = "#facc15" if analysis.get("status") == "Alert" else "#10b981"
             self.status.set(str(analysis.get("status_detail", "✓ Circuit Complete & Powered")))
-            self.status_label.config(fg=status_color)
+            if self.status_label is not None:
+                self.status_label.config(fg=status_color)
         else:
             if not self.components:
                 self._reset_values()
             else:
                 has_battery = any(comp.type == "battery" and comp.get_voltage() > 0 for comp in self.components)
-                has_load = any(comp.type in ("resistor", "bulb") and comp.get_resistance() > 0 for comp in self.components)
+                load_types = {"resistor", "bulb", "led", "diode"}
+                has_load = any(comp.type in load_types and comp.get_resistance() > 0 for comp in self.components)
+                switch_components = [comp for comp in self.components if hasattr(comp, "is_switch") and comp.is_switch()]
+                open_switches = [comp for comp in switch_components if not comp.is_switch_closed()]
 
-                if has_battery and not has_load:
+                if open_switches and has_battery and has_load:
+                    switch_names = ", ".join(comp.display_label for comp in open_switches[:2])
+                    if len(open_switches) > 2:
+                        switch_names += f" +{len(open_switches) - 2} more"
+                    message = f"⚠️ Close {switch_names} to complete the circuit"
+                    color = "#d97706"
+                    analysis["status"] = "Alert"
+                    analysis["issues"].append(f"{switch_names} open; close to complete the circuit")
+                elif has_battery and not has_load:
                     message = "⚠️ Add a resistor or bulb to complete the circuit"
                     color = "#d97706"
                     analysis["status"] = "Alert"
@@ -848,6 +989,8 @@ class OhmsLawApp:
                 self._reset_values(message, color)
 
         analysis["issues"] = list(dict.fromkeys(analysis.get("issues", [])))
+        self.latest_analysis = dict(analysis)
+        self.latest_analysis["issues"] = list(analysis.get("issues", []))
         self._update_analysis_panel(analysis)
     
     
@@ -876,7 +1019,8 @@ class OhmsLawApp:
         self.p_entry.config(state="readonly")
 
         self.status.set(status_text)
-        self.status_label.config(fg=status_color)
+        if self.status_label is not None:
+            self.status_label.config(fg=status_color)
 
     def _reset_circuit(self) -> None:
         for comp in self.components[:]:
