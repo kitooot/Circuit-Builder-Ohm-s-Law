@@ -6,7 +6,7 @@ from .components import CircuitComponent
 from .history import HistoryManager
 from .layout import auto_layout_components
 from .settings import SettingsManager
-from .themes import DEFAULT_THEME, get_theme
+from .themes import DEFAULT_THEME
 from .wires import CircuitWire
 
 __all__ = [
@@ -18,5 +18,4 @@ __all__ = [
     "SettingsManager",
     "HistoryManager",
     "DEFAULT_THEME",
-    "get_theme",
 ]

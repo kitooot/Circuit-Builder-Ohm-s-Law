@@ -241,7 +241,7 @@ def analyze_circuit(
                 endpoint_counts[comp] = endpoint_counts.get(comp, 0) + 1
 
         attachments_count = sum(1 for attachment in wire.attachments.values() if attachment)
-        linked_count = sum(len(link) for link in wire.linked_endpoints.values())
+        linked_count = sum(len(link) for link in wire.links.values())
         if attachments_count + linked_count == 0:
             analysis["issues"].append("Wire with no connections detected")
         elif attachments_count + linked_count == 1:

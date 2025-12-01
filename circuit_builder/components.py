@@ -13,7 +13,7 @@ from .constants import (
     COMPONENT_PROPS,
     GRID_SIZE,
 )
-from .themes import Theme, get_theme
+from .themes import DEFAULT_THEME, Theme
 
 if TYPE_CHECKING:
     from .wires import CircuitWire
@@ -46,7 +46,7 @@ class CircuitComponent:
         self.code_label = code_label
         self.on_change = on_change
         self.on_request_remove = on_request_remove
-        self.theme = theme or get_theme("light")
+        self.theme = theme or DEFAULT_THEME
         self.on_request_duplicate: Optional[Callable[["CircuitComponent"], None]] = None
 
         props = COMPONENT_PROPS.get(comp_type, {})

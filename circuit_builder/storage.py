@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,17 +30,29 @@ class ProjectFile:
         return cls(components=components, wires=wires, metadata=metadata)
 
 
+class StorageError(Exception):
+    """Raised when project persistence fails."""
+
+
 def save_project(path: str, data: ProjectFile) -> None:
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(data.to_dict(), handle, indent=2)
+    try:
+        directory = os.path.dirname(path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(data.to_dict(), handle, indent=2)
+    except OSError as exc:
+        logger.error("Failed to save project to %s: %s", path, exc)
+        raise StorageError(f"Unable to save project to {path!s}") from exc
 
 
 def load_project(path: str) -> ProjectFile:
-    with open(path, "r", encoding="utf-8") as handle:
-        payload = json.load(handle)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("Failed to load project from %s: %s", path, exc)
+        raise StorageError(f"Unable to load project from {path!s}") from exc
     return ProjectFile.from_dict(payload)
 
 
@@ -103,4 +118,5 @@ __all__ = [
     "serialize_components",
     "serialize_wires",
     "deserialize_project",
+    "StorageError",
 ]

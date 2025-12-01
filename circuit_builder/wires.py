@@ -2,11 +2,33 @@ from __future__ import annotations
 
 import math
 import tkinter as tk
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, TYPE_CHECKING, Protocol, runtime_checkable
 
-from .components import CircuitComponent
+if TYPE_CHECKING:
+    from .components import CircuitComponent
+
+
+@runtime_checkable
+class ComponentLike(Protocol):
+    type: str
+
+    def anchor_point(self, side: str) -> Tuple[float, float]:
+        ...
+
+    def attach_wire(self, wire: "CircuitWire", side: str) -> None:
+        ...
+
+    def detach_wire(self, wire: "CircuitWire", side: str | None = None) -> None:
+        ...
 
 ConnectorFinder = Callable[[float, float, Optional["CircuitWire"], Optional[str]], Tuple[Any | None, Any, Tuple[float, float]]]
+
+PointId = str
+LinkRef = Tuple["CircuitWire", PointId]
+VisitedSet = Set[LinkRef]
+ENDPOINT_IDS: Tuple[PointId, PointId] = ("a", "b")
+ENDPOINT_RADIUS = 7
+JOINT_RADIUS = 6
 
 
 class CircuitWire:
@@ -37,19 +59,40 @@ class CircuitWire:
         self.canvas.tag_lower(self.line_id, "component")
 
         self.endpoints = {
-            "a": self.canvas.create_oval(x - 7, y - 7, x + 7, y + 7, fill="#475569", outline="#3b82f6", width=3),
-            "b": self.canvas.create_oval(x + 80 - 7, y - 7, x + 80 + 7, y + 7, fill="#475569", outline="#3b82f6", width=3),
+            "a": self.canvas.create_oval(
+                x - ENDPOINT_RADIUS,
+                y - ENDPOINT_RADIUS,
+                x + ENDPOINT_RADIUS,
+                y + ENDPOINT_RADIUS,
+                fill="#475569",
+                outline="#3b82f6",
+                width=3,
+            ),
+            "b": self.canvas.create_oval(
+                x + 80 - ENDPOINT_RADIUS,
+                y - ENDPOINT_RADIUS,
+                x + 80 + ENDPOINT_RADIUS,
+                y + ENDPOINT_RADIUS,
+                fill="#475569",
+                outline="#3b82f6",
+                width=3,
+            ),
         }
-        self.positions: Dict[str, Tuple[float, float]] = {
+        self.positions: Dict[PointId, Tuple[float, float]] = {
             "a": (x, y),
             "b": (x + 80, y),
         }
-        self.attachments: Dict[str, Tuple[CircuitComponent, str] | None] = {"a": None, "b": None}
-        self.linked_endpoints: Dict[str, Set[Tuple["CircuitWire", str]]] = {"a": set(), "b": set()}
+        self.attachments: Dict[PointId, Tuple[ComponentLike, str] | None] = {"a": None, "b": None}
+        self.links: Dict[PointId, Set[LinkRef]] = {"a": set(), "b": set()}
+        self.point_handles: Dict[PointId, Optional[int]] = {
+            "a": self.endpoints["a"],
+            "b": self.endpoints["b"],
+        }
         self.active = False
-        self.joint_points: List[Tuple[float, float]] = []
-        self.joint_handles: List[Optional[int]] = []
-        self._dragging_joint_index: Optional[int] = None
+        self.joint_ids: List[PointId] = []
+        self.joint_handles: Dict[PointId, Optional[int]] = {}
+        self._joint_counter = 0
+        self._dragging_joint_id: Optional[PointId] = None
 
         self._dragging_endpoint: Optional[str] = None
         self._dragging_line = False
@@ -66,19 +109,32 @@ class CircuitWire:
         self.canvas.tag_bind(self.line_id, "<ButtonRelease-1>", self._stop_line_drag)
         self.canvas.tag_bind(self.line_id, "<Double-Button-1>", self._cut)
 
-        self._set_endpoint("a", x, y)
-        self._set_endpoint("b", x + 80, y)
+        self._set_point("a", x, y)
+        self._set_point("b", x + 80, y)
         self._create_joint(((x + (x + 80)) / 2.0, y))
 
-    def _set_endpoint(self, endpoint: str, x: float, y: float) -> None:
-        self.positions[endpoint] = (x, y)
-        handle_id = self.endpoints[endpoint]
-        self.canvas.coords(handle_id, x - 7, y - 7, x + 7, y + 7)
-        self.canvas.tag_raise(handle_id)
-        self._update_line_path()
+    def _all_point_ids(self) -> List[PointId]:
+        return ["a", *self.joint_ids, "b"]
+
+    @property
+    def linked_endpoints(self) -> Dict[PointId, Set[LinkRef]]:
+        return self.links
+
+    def _set_point(self, point_id: PointId, x: float, y: float, *, update_path: bool = True) -> None:
+        self.positions[point_id] = (x, y)
+        handle_id = self.point_handles.get(point_id)
+        if handle_id:
+            radius = ENDPOINT_RADIUS if point_id in ENDPOINT_IDS else JOINT_RADIUS
+            self.canvas.coords(handle_id, x - radius, y - radius, x + radius, y + radius)
+            self.canvas.tag_raise(handle_id)
+        if update_path:
+            self._update_line_path()
 
     def _path_points(self) -> List[Tuple[float, float]]:
-        return [self.positions["a"], *self.joint_points, self.positions["b"]]
+        points: List[Tuple[float, float]] = []
+        for point_id in self._all_point_ids():
+            points.append(self.positions[point_id])
+        return points
 
     def _update_line_path(self) -> None:
         points = self._path_points()
@@ -86,78 +142,98 @@ class CircuitWire:
         for px, py in points:
             flat.extend([px, py])
         self.canvas.coords(self.line_id, *flat)
-        for handle, (jx, jy) in zip(self.joint_handles, self.joint_points):
-            if handle is None:
+        for joint_id in self.joint_ids:
+            handle = self.joint_handles.get(joint_id)
+            if not handle:
                 continue
-            self.canvas.coords(handle, jx - 6, jy - 6, jx + 6, jy + 6)
+            jx, jy = self.positions[joint_id]
+            self.canvas.coords(handle, jx - JOINT_RADIUS, jy - JOINT_RADIUS, jx + JOINT_RADIUS, jy + JOINT_RADIUS)
             self.canvas.tag_raise(handle)
         self.canvas.tag_lower(self.line_id, "component")
 
-    def _create_joint(self, point: Tuple[float, float], draggable: bool = True) -> None:
-        jx, jy = point
-        self.joint_points.append((jx, jy))
-        if draggable:
-            handle = self.canvas.create_oval(jx - 6, jy - 6, jx + 6, jy + 6, fill="#475569", outline="#0ea5e9", width=2)
-            self._bind_joint_handle(handle)
-            self.joint_handles.append(handle)
+    def _create_joint(self, point: Tuple[float, float], draggable: bool = True, insert_at: Optional[int] = None) -> PointId:
+        joint_id = f"j{self._joint_counter}"
+        self._joint_counter += 1
+        if insert_at is None:
+            self.joint_ids.append(joint_id)
         else:
-            self.joint_handles.append(None)
+            self.joint_ids.insert(max(0, min(insert_at, len(self.joint_ids))), joint_id)
+        self.positions[joint_id] = point
+        self.attachments[joint_id] = None
+        self.links[joint_id] = set()
+        handle: Optional[int] = None
+        if draggable:
+            jx, jy = point
+            handle = self.canvas.create_oval(
+                jx - JOINT_RADIUS,
+                jy - JOINT_RADIUS,
+                jx + JOINT_RADIUS,
+                jy + JOINT_RADIUS,
+                fill="#475569",
+                outline="#0ea5e9",
+                width=2,
+            )
+            self._bind_joint_handle(joint_id, handle)
+        self.joint_handles[joint_id] = handle
+        self.point_handles[joint_id] = handle
         self._update_line_path()
+        return joint_id
 
-    def _bind_joint_handle(self, handle_id: int) -> None:
-        self.canvas.tag_bind(handle_id, "<Button-1>", lambda event, hid=handle_id: self._start_joint_drag(hid, event))
+    def _bind_joint_handle(self, joint_id: PointId, handle_id: int) -> None:
+        self.canvas.tag_bind(handle_id, "<Button-1>", lambda event, jid=joint_id: self._start_joint_drag(jid, event))
         self.canvas.tag_bind(handle_id, "<B1-Motion>", self._drag_joint)
         self.canvas.tag_bind(handle_id, "<ButtonRelease-1>", self._stop_joint_drag)
-        self.canvas.tag_bind(handle_id, "<Double-Button-1>", lambda _event, hid=handle_id: self._remove_joint(hid))
+        self.canvas.tag_bind(handle_id, "<Double-Button-1>", lambda _event, jid=joint_id: self._remove_joint(jid))
 
-    def _start_joint_drag(self, handle_id: int, event: tk.Event) -> None:
-        try:
-            index = self.joint_handles.index(handle_id)
-        except ValueError:
-            return
-        self._dragging_joint_index = index
-        self.canvas.tag_raise(handle_id)
+    def _start_joint_drag(self, joint_id: PointId, _event: tk.Event) -> None:
+        self._dragging_joint_id = joint_id
+        handle = self.joint_handles.get(joint_id)
+        if handle:
+            self.canvas.tag_raise(handle)
 
     def _drag_joint(self, event: tk.Event) -> None:
-        if self._dragging_joint_index is None:
+        if self._dragging_joint_id is None:
             return
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
-        self.joint_points[self._dragging_joint_index] = (canvas_x, canvas_y)
-        self._update_line_path()
+        self._set_point(self._dragging_joint_id, canvas_x, canvas_y)
+        self._propagate_position(self._dragging_joint_id, (canvas_x, canvas_y), {(self, self._dragging_joint_id)})
 
     def _stop_joint_drag(self, event: tk.Event) -> None:
-        if self._dragging_joint_index is None:
+        if self._dragging_joint_id is None:
             return
         self._drag_joint(event)
-        self._dragging_joint_index = None
+        self._dragging_joint_id = None
         if self.on_change:
             self.on_change(self)
 
-    def _remove_joint(self, handle_id: int) -> None:
-        try:
-            index = self.joint_handles.index(handle_id)
-        except ValueError:
+    def _remove_joint(self, joint_id: PointId) -> None:
+        if joint_id not in self.joint_ids:
             return
-        handle = self.joint_handles.pop(index)
+        if self.links.get(joint_id):
+            return
+        handle = self.joint_handles.pop(joint_id, None)
         if handle is not None:
             self.canvas.delete(handle)
-        self.joint_points.pop(index)
-        self._dragging_joint_index = None
+        self.point_handles.pop(joint_id, None)
+        self.positions.pop(joint_id, None)
+        self.attachments.pop(joint_id, None)
+        self.links.pop(joint_id, None)
+        self.joint_ids.remove(joint_id)
         self._update_line_path()
         if self.on_change:
             self.on_change(self)
 
-    def _start_drag(self, endpoint: str, _event: tk.Event) -> None:
+    def _start_drag(self, endpoint: PointId, _event: tk.Event) -> None:
         self._dragging_endpoint = endpoint
-        self._detach_endpoint(endpoint)
+        self._detach_point(endpoint)
 
     def _drag(self, event: tk.Event) -> None:
         if self._dragging_endpoint is None:
             return
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
-        self._set_endpoint(self._dragging_endpoint, canvas_x, canvas_y)
+        self._set_point(self._dragging_endpoint, canvas_x, canvas_y)
 
     def _stop_drag(self, event: tk.Event) -> None:
         if self._dragging_endpoint is None:
@@ -169,38 +245,38 @@ class CircuitWire:
         canvas_y = self.canvas.canvasy(event.y)
         target, identifier, snap_point = self.connector_finder(canvas_x, canvas_y, self, endpoint)
 
-        if isinstance(target, CircuitComponent) and isinstance(identifier, str):
+        if isinstance(target, ComponentLike) and isinstance(identifier, str):
             self.attach_to_component(endpoint, target, identifier, snap_point)
         elif isinstance(target, CircuitWire):
             self.attach_to_wire(endpoint, target, identifier, snap_point)
         else:
-            self._set_endpoint(endpoint, canvas_x, canvas_y)
+            self._set_point(endpoint, canvas_x, canvas_y)
             if self.on_change:
                 self.on_change(self)
 
-    def _detach_endpoint(self, endpoint: str) -> None:
-        attachment = self.attachments.get(endpoint)
+    def _detach_point(self, point_id: PointId) -> None:
+        attachment = self.attachments.get(point_id)
         if attachment:
             component, side = attachment
             component.detach_wire(self, side)
-            self.attachments[endpoint] = None
-        if self.linked_endpoints.get(endpoint):
-            self._unlink_endpoint(endpoint)
+            self.attachments[point_id] = None
+        if self.links.get(point_id):
+            self._unlink_point(point_id)
 
-    def _link_endpoint(self, endpoint: str, other_wire: "CircuitWire", other_endpoint: str) -> None:
-        if other_wire is self and other_endpoint == endpoint:
+    def _link_point(self, point_id: PointId, other_wire: "CircuitWire", other_point: PointId) -> None:
+        if other_wire is self and other_point == point_id:
             return
-        self.linked_endpoints.setdefault(endpoint, set()).add((other_wire, other_endpoint))
-        other_wire.linked_endpoints.setdefault(other_endpoint, set()).add((self, endpoint))
+        self.links.setdefault(point_id, set()).add((other_wire, other_point))
+        other_wire.links.setdefault(other_point, set()).add((self, point_id))
 
-    def _unlink_endpoint(self, endpoint: str) -> None:
-        for other_wire, other_endpoint in list(self.linked_endpoints.get(endpoint, set())):
-            other_wire.linked_endpoints.setdefault(other_endpoint, set()).discard((self, endpoint))
-        self.linked_endpoints.setdefault(endpoint, set()).clear()
+    def _unlink_point(self, point_id: PointId) -> None:
+        for other_wire, other_point in list(self.links.get(point_id, set())):
+            other_wire.links.setdefault(other_point, set()).discard((self, point_id))
+        self.links.setdefault(point_id, set()).clear()
 
     def has_free_endpoint(self) -> bool:
-        for endpoint in ("a", "b"):
-            if not self.attachments.get(endpoint) and not self.linked_endpoints.get(endpoint):
+        for endpoint in ENDPOINT_IDS:
+            if not self.attachments.get(endpoint) and not self.links.get(endpoint):
                 return True
         return False
 
@@ -208,8 +284,8 @@ class CircuitWire:
         px, py = point
         selected: Optional[str] = None
         best_distance = float("inf")
-        for endpoint in ("a", "b"):
-            if self.attachments.get(endpoint) or self.linked_endpoints.get(endpoint):
+        for endpoint in ENDPOINT_IDS:
+            if self.attachments.get(endpoint) or self.links.get(endpoint):
                 continue
             ex, ey = self.positions.get(endpoint, (0.0, 0.0))
             dist = math.hypot(ex - px, ey - py)
@@ -222,7 +298,7 @@ class CircuitWire:
         px, py = point
         selected: Optional[str] = None
         best_distance = float("inf")
-        for endpoint in ("a", "b"):
+        for endpoint in ENDPOINT_IDS:
             ex, ey = self.positions.get(endpoint, (0.0, 0.0))
             dist = math.hypot(ex - px, ey - py)
             if dist < best_distance:
@@ -235,144 +311,152 @@ class CircuitWire:
 
     def _propagate_attachment(
         self,
-        endpoint: str,
-        component: CircuitComponent,
+        point_id: PointId,
+        component: ComponentLike,
         side: str,
-        visited: Optional[Set[Tuple["CircuitWire", str]]] = None,
+        visited: Optional[VisitedSet] = None,
     ) -> None:
         if visited is None:
             visited = set()
-        visited.add((self, endpoint))
-        for other_wire, other_endpoint in list(self.linked_endpoints.get(endpoint, set())):
-            if (other_wire, other_endpoint) in visited:
+        visited.add((self, point_id))
+        for other_wire, other_point in list(self.links.get(point_id, set())):
+            if (other_wire, other_point) in visited:
                 continue
-            other_wire._adopt_attachment(other_endpoint, component, side, visited)
+            other_wire._adopt_attachment(other_point, component, side, visited)
 
     def _adopt_attachment(
         self,
-        endpoint: str,
-        component: CircuitComponent,
+        point_id: PointId,
+        component: ComponentLike,
         side: str,
-        visited: Set[Tuple["CircuitWire", str]],
+        visited: VisitedSet,
     ) -> None:
-        current = self.attachments.get(endpoint)
+        current = self.attachments.get(point_id)
         if not current or current[0] is not component or current[1] != side:
             if current:
                 old_component, old_side = current
                 old_component.detach_wire(self, old_side)
             component.attach_wire(self, side)
-            self.attachments[endpoint] = (component, side)
+            self.attachments[point_id] = (component, side)
         anchor = component.anchor_point(side)
-        self._set_endpoint(endpoint, *anchor)
-        self._propagate_position(endpoint, anchor, visited)
-        self._propagate_attachment(endpoint, component, side, visited)
+        self._set_point(point_id, *anchor)
+        self._propagate_position(point_id, anchor, visited)
+        self._propagate_attachment(point_id, component, side, visited)
 
     def _propagate_position(
         self,
-        endpoint: str,
+        point_id: PointId,
         point: Tuple[float, float],
-        visited: Optional[Set[Tuple["CircuitWire", str]]] = None,
+        visited: Optional[VisitedSet] = None,
     ) -> None:
         if visited is None:
             visited = set()
-        visited.add((self, endpoint))
-        for other_wire, other_endpoint in list(self.linked_endpoints.get(endpoint, set())):
-            if (other_wire, other_endpoint) in visited:
+        visited.add((self, point_id))
+        for other_wire, other_point in list(self.links.get(point_id, set())):
+            if (other_wire, other_point) in visited:
                 continue
-            other_wire._set_endpoint(other_endpoint, *point)
-            other_wire._propagate_position(other_endpoint, point, visited)
+            other_wire._set_point(other_point, *point)
+            other_wire._propagate_position(other_point, point, visited)
         self._update_line_path()
 
     def attach_to_component(
         self,
-        endpoint: str,
-        component: CircuitComponent,
+        point_id: PointId,
+        component: ComponentLike,
         side: str,
         point: Tuple[float, float] | None = None,
     ) -> None:
-        self._detach_endpoint(endpoint)
+        self._detach_point(point_id)
         anchor = point if point else component.anchor_point(side)
-        self._set_endpoint(endpoint, *anchor)
+        self._set_point(point_id, *anchor)
         component.attach_wire(self, side)
-        self.attachments[endpoint] = (component, side)
-        self._propagate_position(endpoint, anchor, {(self, endpoint)})
-        self._propagate_attachment(endpoint, component, side, {(self, endpoint)})
+        self.attachments[point_id] = (component, side)
+        self._propagate_position(point_id, anchor, {(self, point_id)})
+        self._propagate_attachment(point_id, component, side, {(self, point_id)})
         if self.on_change:
             self.on_change(self)
 
+    def ensure_junction(self, point: Tuple[float, float], segment_index: Optional[int] = None) -> PointId:
+        px, py = point
+        for candidate in self._all_point_ids():
+            cx, cy = self.positions.get(candidate, (0.0, 0.0))
+            if math.hypot(cx - px, cy - py) <= 8.0:
+                return candidate
+        insert_at = None
+        if segment_index is not None:
+            insert_at = min(max(segment_index, 0), len(self.joint_ids))
+        return self._create_joint(point, draggable=True, insert_at=insert_at)
+
     def attach_to_wire(
         self,
-        endpoint: str,
+        point_id: PointId,
         other_wire: "CircuitWire",
-        other_endpoint: Union[str, Tuple[str, float, float]],
+        other_endpoint: Union[str, Tuple[Any, ...]],
         point: Tuple[float, float] | None = None,
     ) -> None:
         if other_wire is self:
             return
 
         snap_point = point
-        target_endpoint: Optional[str]
+        target_point: Optional[PointId] = None
 
         if isinstance(other_endpoint, tuple):
             tag = other_endpoint[0]
             if tag == "segment":
                 candidate_point = (other_endpoint[1], other_endpoint[2])
-                target_endpoint = other_wire.nearest_free_endpoint(candidate_point)
-                if target_endpoint is None:
-                    target_endpoint = other_wire.nearest_endpoint(candidate_point)
-                if target_endpoint is None:
-                    return
-                snap_point = candidate_point
+                segment_index = other_endpoint[3] if len(other_endpoint) > 3 else None
+                target_point = other_wire.ensure_junction(candidate_point, segment_index)
+                snap_point = other_wire.positions.get(target_point, candidate_point)
             else:
                 return
         else:
-            target_endpoint = other_endpoint
+            target_point = other_endpoint
 
-        if not isinstance(target_endpoint, str):
+        if not isinstance(target_point, str):
             return
 
-        self._detach_endpoint(endpoint)
+        self._detach_point(point_id)
         if snap_point is None:
-            snap_point = other_wire.positions.get(target_endpoint, (0.0, 0.0))
-        self._set_endpoint(endpoint, *snap_point)
-        self._link_endpoint(endpoint, other_wire, target_endpoint)
+            snap_point = other_wire.positions.get(target_point, (0.0, 0.0))
+        self._set_point(point_id, *snap_point)
+        self._link_point(point_id, other_wire, target_point)
 
-        other_attachment = other_wire.attachments.get(target_endpoint)
+        other_attachment = other_wire.attachments.get(target_point)
         if other_attachment:
             component, side = other_attachment
             component.attach_wire(self, side)
-            self.attachments[endpoint] = (component, side)
-            self._propagate_position(endpoint, snap_point, {(self, endpoint)})
-            self._propagate_attachment(endpoint, component, side, {(self, endpoint)})
+            self.attachments[point_id] = (component, side)
+            self._propagate_position(point_id, snap_point, {(self, point_id)})
+            self._propagate_attachment(point_id, component, side, {(self, point_id)})
         else:
-            self.attachments[endpoint] = None
-            self._propagate_position(endpoint, snap_point, {(self, endpoint)})
+            self.attachments[point_id] = None
+            self._propagate_position(point_id, snap_point, {(self, point_id)})
 
         if self.on_change:
             self.on_change(self)
 
-    def detach_component(self, component: CircuitComponent) -> None:
+    def detach_component(self, component: ComponentLike) -> None:
         updated = False
-        for endpoint, attachment in list(self.attachments.items()):
+        for point_id, attachment in list(self.attachments.items()):
             if attachment and attachment[0] is component:
                 component.detach_wire(self, attachment[1])
-                self.attachments[endpoint] = None
+                self.attachments[point_id] = None
                 updated = True
         if updated and self.on_change:
             self.on_change(self)
 
-    def update_attachment_position(self, component: CircuitComponent, side: str, point: Tuple[float, float]) -> None:
-        for endpoint, attachment in self.attachments.items():
+    def update_attachment_position(self, component: ComponentLike, side: str, point: Tuple[float, float]) -> None:
+        for point_id, attachment in self.attachments.items():
             if attachment and attachment[0] is component and attachment[1] == side:
-                self._set_endpoint(endpoint, *point)
-                self._propagate_position(endpoint, point, {(self, endpoint)})
+                self._set_point(point_id, *point)
+                self._propagate_position(point_id, point, {(self, point_id)})
 
-    def attached_components(self) -> list[CircuitComponent]:
-        components: list[CircuitComponent] = []
+    def attached_components(self) -> list[ComponentLike]:
+        components: Set[ComponentLike] = set()
         for attachment in self.attachments.values():
             if attachment:
-                components.append(attachment[0])
-        return components
+                components.add(attachment[0])
+        return list(components)
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -383,7 +467,7 @@ class CircuitWire:
             fill_color = "#10b981" if active else "#475569"
             outline_color = "#059669" if active else "#3b82f6"
             self.canvas.itemconfigure(handle, fill=fill_color, outline=outline_color)
-        for handle in self.joint_handles:
+        for handle in self.joint_handles.values():
             if handle is None:
                 continue
             fill_color = "#10b981" if active else "#475569"
@@ -394,27 +478,25 @@ class CircuitWire:
         self.remove()
 
     def remove(self) -> None:
-        for endpoint, attachment in list(self.attachments.items()):
+        for point_id, attachment in list(self.attachments.items()):
             if attachment:
                 component, side = attachment
                 component.detach_wire(self, side)
-                self.attachments[endpoint] = None
-        for endpoint in ("a", "b"):
-            if self.linked_endpoints.get(endpoint):
-                self._unlink_endpoint(endpoint)
+                self.attachments[point_id] = None
+        for point_id in list(self.links.keys()):
+            if self.links.get(point_id):
+                self._unlink_point(point_id)
         self.canvas.delete(self.line_id)
-        for handle in self.endpoints.values():
-            self.canvas.delete(handle)
-        for handle in self.joint_handles:
+        for handle in list(self.point_handles.values()):
             if handle is not None:
                 self.canvas.delete(handle)
         if self.on_request_remove:
             self.on_request_remove(self)
 
     def _start_line_drag(self, event: tk.Event) -> None:
-        if any(self.attachments.get(ep) for ep in ("a", "b")):
+        if any(self.attachments.get(pid) for pid in self._all_point_ids()):
             return
-        if any(self.linked_endpoints.get(ep) for ep in ("a", "b")):
+        if any(self.links.get(pid) for pid in self._all_point_ids()):
             return
         self._dragging_line = True
         self._line_drag_last = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
@@ -428,11 +510,9 @@ class CircuitWire:
         dy = current_y - self._line_drag_last[1]
         if dx == 0 and dy == 0:
             return
-        for endpoint in ("a", "b"):
-            ex, ey = self.positions.get(endpoint, (0.0, 0.0))
-            self._set_endpoint(endpoint, ex + dx, ey + dy)
-        for index, (jx, jy) in enumerate(self.joint_points):
-            self.joint_points[index] = (jx + dx, jy + dy)
+        for point_id in self._all_point_ids():
+            px, py = self.positions.get(point_id, (0.0, 0.0))
+            self._set_point(point_id, px + dx, py + dy, update_path=False)
         self._update_line_path()
         self._line_drag_last = (current_x, current_y)
 

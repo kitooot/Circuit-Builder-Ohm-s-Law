@@ -41,28 +41,11 @@ THEMES: Dict[str, Theme] = {
         warning="#f97316",
         alert="#dc2626",
     ),
-    "dark": Theme(
-        name="Dark",
-        background="#0f172a",
-        surface="#111827",
-        raised_surface="#1f2937",
-        accent="#38bdf8",
-        accent_light="#0ea5e9",
-        accent_text="#0f172a",
-        text_primary="#f8fafc",
-        text_secondary="#cbd5f5",
-        border="#1f2937",
-        shadow="#0b1120",
-        canvas_bg="#0f172a",
-        grid_color="#1f2937",
-        warning="#f97316",
-        alert="#f87171",
-    ),
 }
 
 
-def get_theme(theme_id: str) -> Theme:
-    return THEMES.get(theme_id.lower(), THEMES["light"])
+def get_theme(_theme_id: str | None = None) -> Theme:
+    return THEMES["light"]
 
 
 DEFAULT_THEME = THEMES["light"]

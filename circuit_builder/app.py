@@ -53,6 +53,21 @@ class OhmsLawApp:
     # UI Construction & Layout
     # ------------------------------------------------------------------
     def _create_widgets(self) -> None:
+        self._build_header()
+        main_frame = self._build_main_frame()
+
+        left_panel = self._build_left_panel(main_frame)
+        self._populate_component_palette(left_panel)
+        help_frame, help_title, help_hint, tip_labels = self._build_help_section(left_panel)
+        self._bind_help_events(help_frame, help_title, help_hint, tip_labels)
+
+        self._build_canvas_panel(main_frame)
+        analysis_frame, analysis_title = self._build_right_panel(main_frame)
+        self._bind_analysis_events(analysis_frame, analysis_title)
+
+        self._initialize_analysis_state()
+
+    def _build_header(self) -> None:
         header = tk.Frame(self.root, bg="#ffffff", relief=tk.RAISED, bd=1)
         header.pack(side=tk.TOP, fill=tk.X, padx=0, pady=0)
 
@@ -61,7 +76,7 @@ class OhmsLawApp:
             text="⚡ Interactive Circuit Builder",
             font=("Arial", 14, "bold"),
             bg="#ffffff",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(pady=(12, 2))
 
         tk.Label(
@@ -69,20 +84,25 @@ class OhmsLawApp:
             text="Drag components, connect with wires, and watch Ohm's Law calculations update in real-time",
             font=("Arial", 10),
             bg="#ffffff",
-            fg="#6b7280"
+            fg="#6b7280",
         ).pack(pady=(0, 12))
 
+    def _build_main_frame(self) -> tk.Frame:
         main_frame = tk.Frame(self.root, bg="#f0f0f0")
         main_frame.pack(fill=tk.BOTH, expand=True)
         main_frame.grid_rowconfigure(0, weight=1)
         main_frame.grid_columnconfigure(0, weight=0, minsize=240)
         main_frame.grid_columnconfigure(1, weight=4, minsize=400)
         main_frame.grid_columnconfigure(2, weight=1, minsize=280)
+        return main_frame
 
+    def _build_left_panel(self, main_frame: tk.Frame) -> tk.Frame:
         left_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(5, 2), pady=5)
         left_panel.grid_propagate(True)
+        return left_panel
 
+    def _populate_component_palette(self, left_panel: tk.Frame) -> None:
         tk.Label(left_panel, text="Component Palette", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=(10, 5))
 
         palette = [
@@ -143,6 +163,9 @@ class OhmsLawApp:
             text_label.bind("<Enter>", lambda _event, t=tile: self._set_palette_tile_state(t, True))
             text_label.bind("<Leave>", lambda _event, t=tile: self._set_palette_tile_state(t, False))
 
+    def _build_help_section(
+        self, left_panel: tk.Frame
+    ) -> Tuple[tk.Frame, tk.Label, tk.Label, List[tk.Label]]:
         help_frame = tk.Frame(left_panel, bg="#f0f9ff", relief=tk.RIDGE, bd=1, cursor="hand2")
         help_frame.pack(side=tk.BOTTOM, pady=10, padx=8, fill=tk.X)
         self.help_frame = help_frame
@@ -153,7 +176,7 @@ class OhmsLawApp:
             font=("Arial", 9, "bold"),
             bg="#f0f9ff",
             fg="#1e40af",
-            cursor="hand2"
+            cursor="hand2",
         )
         help_title.pack(pady=(6, 4))
 
@@ -168,14 +191,37 @@ class OhmsLawApp:
                 anchor="w",
                 justify=tk.LEFT,
                 wraplength=210,
-                cursor="hand2"
+                cursor="hand2",
             )
             label.pack(anchor="w", padx=8, pady=1)
             tip_labels.append(label)
 
-        help_hint = tk.Label(help_frame, text="Double-click for full guide", font=("Arial", 7, "italic"), bg="#f0f9ff", fg="#1e40af", cursor="hand2")
+        help_hint = tk.Label(
+            help_frame,
+            text="Double-click for full guide",
+            font=("Arial", 7, "italic"),
+            bg="#f0f9ff",
+            fg="#1e40af",
+            cursor="hand2",
+        )
         help_hint.pack(pady=4)
 
+        return help_frame, help_title, help_hint, tip_labels
+
+    def _bind_help_events(
+        self,
+        help_frame: tk.Frame,
+        help_title: tk.Label,
+        help_hint: tk.Label,
+        tip_labels: List[tk.Label],
+    ) -> None:
+        help_frame.bind("<Double-1>", self._show_tips_dialog)
+        help_title.bind("<Double-1>", self._show_tips_dialog)
+        help_hint.bind("<Double-1>", self._show_tips_dialog)
+        for label in tip_labels:
+            label.bind("<Double-1>", self._show_tips_dialog)
+
+    def _build_canvas_panel(self, main_frame: tk.Frame) -> None:
         canvas_frame = tk.Frame(main_frame, bg="#f0f0f0")
         canvas_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         canvas_frame.grid_rowconfigure(1, weight=1)
@@ -183,7 +229,13 @@ class OhmsLawApp:
 
         canvas_header = tk.Frame(canvas_frame, bg="#f0f0f0")
         canvas_header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        tk.Label(canvas_header, text="Circuit Canvas", font=("Arial", 12, "bold"), bg="#f0f0f0", fg="#1f2937").pack(side=tk.LEFT)
+        tk.Label(
+            canvas_header,
+            text="Circuit Canvas",
+            font=("Arial", 12, "bold"),
+            bg="#f0f0f0",
+            fg="#1f2937",
+        ).pack(side=tk.LEFT)
 
         controls_frame = tk.Frame(canvas_header, bg="#f0f0f0")
         controls_frame.pack(side=tk.RIGHT)
@@ -210,22 +262,50 @@ class OhmsLawApp:
         )
         self.status_label.pack(side=tk.RIGHT, padx=(0, 10))
 
-        self.canvas = tk.Canvas(canvas_frame, bg="white", width=CANVAS_WIDTH, height=CANVAS_HEIGHT, relief=tk.SUNKEN, bd=2)
+        self.canvas = tk.Canvas(
+            canvas_frame,
+            bg="white",
+            width=CANVAS_WIDTH,
+            height=CANVAS_HEIGHT,
+            relief=tk.SUNKEN,
+            bd=2,
+        )
         self.canvas.grid(row=1, column=0, sticky="nsew")
         self.canvas_width = CANVAS_WIDTH
         self.canvas_height = CANVAS_HEIGHT
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
+    def _build_right_panel(self, main_frame: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
         right_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
         right_panel.grid(row=0, column=2, sticky="nsew", padx=(2, 5), pady=5)
         right_panel.grid_propagate(True)
 
-        tk.Label(right_panel, text="Ohm's Law Calculator", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=(10, 5))
+        tk.Label(
+            right_panel,
+            text="Ohm's Law Calculator",
+            font=("Arial", 12, "bold"),
+            bg="#ffffff",
+        ).pack(pady=(10, 5))
 
+        self._build_formula_section(right_panel)
+        self._build_calculator_entries(right_panel)
+        self._build_info_section(right_panel)
+
+        analysis_frame, analysis_title = self._build_analysis_panel(right_panel)
+        return analysis_frame, analysis_title
+
+    def _build_formula_section(self, right_panel: tk.Frame) -> None:
         formula_frame = tk.Frame(right_panel, bg="white", relief=tk.RAISED, bd=1)
         formula_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(formula_frame, text="V = I × R", font=("Arial", 14, "bold"), bg="white", fg="#333333").pack(pady=10)
+        tk.Label(
+            formula_frame,
+            text="V = I × R",
+            font=("Arial", 14, "bold"),
+            bg="white",
+            fg="#333333",
+        ).pack(pady=10)
 
+    def _build_calculator_entries(self, right_panel: tk.Frame) -> None:
         v_frame = tk.Frame(right_panel, bg="#ffffff")
         v_frame.pack(padx=10, pady=5, fill=tk.X)
         tk.Label(v_frame, text="Voltage (V)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
@@ -250,6 +330,7 @@ class OhmsLawApp:
         self.p_entry = tk.Entry(power_frame, font=("Arial", 12), justify="center", state="readonly", readonlybackground="white")
         self.p_entry.pack(fill=tk.X, padx=5, pady=2)
 
+    def _build_info_section(self, right_panel: tk.Frame) -> None:
         info_frame = tk.Frame(right_panel, bg="#ecfdf5", relief=tk.RAISED, bd=1)
         info_frame.pack(padx=10, pady=10, fill=tk.X)
         tk.Label(
@@ -257,7 +338,7 @@ class OhmsLawApp:
             text="ℹ️ Build Your Circuit",
             font=("Arial", 9, "bold"),
             bg="#ecfdf5",
-            fg="#047857"
+            fg="#047857",
         ).pack(padx=5, pady=(5, 2))
         tk.Label(
             info_frame,
@@ -266,9 +347,10 @@ class OhmsLawApp:
             bg="#ecfdf5",
             fg="#065f46",
             wraplength=220,
-            justify=tk.LEFT
+            justify=tk.LEFT,
         ).pack(padx=8, pady=(0, 5))
 
+    def _build_analysis_panel(self, right_panel: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
         analysis_frame = tk.Frame(right_panel, bg="#f8fafc", relief=tk.RIDGE, bd=1, cursor="hand2")
         analysis_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
         self.analysis_frame = analysis_frame
@@ -279,7 +361,7 @@ class OhmsLawApp:
             font=("Arial", 10, "bold"),
             bg="#f8fafc",
             fg="#1d4ed8",
-            cursor="hand2"
+            cursor="hand2",
         )
         analysis_title.pack(anchor="w", padx=8, pady=(6, 2))
 
@@ -288,7 +370,7 @@ class OhmsLawApp:
             textvariable=self.circuit_type_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=1)
 
         tk.Label(
@@ -296,7 +378,7 @@ class OhmsLawApp:
             textvariable=self.circuit_status_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=1)
 
         tk.Label(
@@ -304,7 +386,7 @@ class OhmsLawApp:
             textvariable=self.circuit_metrics_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=(4, 1))
 
         tk.Label(
@@ -312,7 +394,7 @@ class OhmsLawApp:
             textvariable=self.circuit_power_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=1)
 
         tk.Label(
@@ -320,7 +402,7 @@ class OhmsLawApp:
             textvariable=self.circuit_counts_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=(4, 1))
 
         tk.Label(
@@ -328,7 +410,7 @@ class OhmsLawApp:
             textvariable=self.circuit_path_var,
             font=("Arial", 9),
             bg="#f8fafc",
-            fg="#1f2937"
+            fg="#1f2937",
         ).pack(anchor="w", padx=12, pady=1)
 
         tk.Label(
@@ -336,7 +418,7 @@ class OhmsLawApp:
             text="Issues & Tips",
             font=("Arial", 9, "bold"),
             bg="#f8fafc",
-            fg="#475569"
+            fg="#475569",
         ).pack(anchor="w", padx=12, pady=(8, 2))
 
         self.circuit_issue_label = tk.Label(
@@ -353,12 +435,9 @@ class OhmsLawApp:
         )
         self.circuit_issue_label.pack(fill=tk.X, padx=10, pady=(0, 8))
 
-        help_frame.bind("<Double-1>", self._show_tips_dialog)
-        help_title.bind("<Double-1>", self._show_tips_dialog)
-        help_hint.bind("<Double-1>", self._show_tips_dialog)
-        for label in tip_labels:
-            label.bind("<Double-1>", self._show_tips_dialog)
+        return analysis_frame, analysis_title
 
+    def _bind_analysis_events(self, analysis_frame: tk.Frame, analysis_title: tk.Label) -> None:
         analysis_frame.bind("<Double-1>", self._show_insight_info)
         analysis_title.bind("<Double-1>", self._show_insight_info)
         for child in analysis_frame.winfo_children():
@@ -366,8 +445,9 @@ class OhmsLawApp:
                 child.configure(cursor="hand2")
                 child.bind("<Double-1>", self._show_insight_info)
             except tk.TclError:
-                pass
+                continue
 
+    def _initialize_analysis_state(self) -> None:
         initial_analysis = {
             "component_count": 0,
             "wire_count": 0,
@@ -385,21 +465,6 @@ class OhmsLawApp:
         }
         self._update_analysis_panel(initial_analysis)
         self.latest_analysis = dict(initial_analysis)
-        self.latest_analysis = {
-            "component_count": 0,
-            "wire_count": 0,
-            "active_component_count": 0,
-            "active_wire_count": 0,
-            "type": "Open",
-            "status": "Open",
-            "status_detail": "⚫ Open Circuit",
-            "total_voltage": 0.0,
-            "total_current": 0.0,
-            "total_resistance": 0.0,
-            "total_power": 0.0,
-            "path_description": "—",
-            "issues": [],
-        }
 
     def _set_palette_tile_state(self, tile: tk.Frame, hover: bool) -> None:
         base_bg = "#f8fafc"
@@ -741,7 +806,7 @@ class OhmsLawApp:
                 for endpoint in ("a", "b"):
                     if wire.attachments.get(endpoint):
                         continue
-                    if wire.linked_endpoints.get(endpoint):
+                    if wire.links.get(endpoint):
                         continue
                     position = wire.positions.get(endpoint)
                     if not position:
@@ -821,7 +886,7 @@ class OhmsLawApp:
                         continue
                     best_distance = dist
                     target = wire
-                    identifier = ("segment", px, py)
+                    identifier = ("segment", px, py, idx)
                     snap_point = (px, py)
 
         return target, identifier, snap_point

@@ -4,13 +4,14 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict
+import logging
+logger = logging.getLogger(__name__)
 
 CONFIG_FILENAME = "circuit_builder_config.json"
 
 
 @dataclass
 class UserSettings:
-    theme: str = "light"
     grid_visible: bool = True
     default_battery_voltage: float = 9.0
     default_resistor_value: float = 100.0
@@ -20,7 +21,6 @@ class UserSettings:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "theme": self.theme,
             "grid_visible": self.grid_visible,
             "default_battery_voltage": self.default_battery_voltage,
             "default_resistor_value": self.default_resistor_value,
@@ -58,7 +58,8 @@ class SettingsManager:
         try:
             with open(self.config_path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load settings from %s: %s", self.config_path, exc)
             return
         self.settings = UserSettings.from_dict(payload)
 
@@ -67,8 +68,8 @@ class SettingsManager:
         try:
             with open(self.config_path, "w", encoding="utf-8") as handle:
                 json.dump(self.settings.to_dict(), handle, indent=2)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("Failed to save settings to %s: %s", self.config_path, exc)
 
     def get(self, key: str, default: Any = None) -> Any:
         return getattr(self.settings, key, default)
