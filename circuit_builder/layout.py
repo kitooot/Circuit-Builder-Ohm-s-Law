@@ -8,6 +8,7 @@ from .constants import GRID_SIZE
 
 def auto_layout_components(components: Iterable, adjacency: Dict) -> Dict[int, tuple[int, int]]:
     """Generate grid-aligned positions using a simple layered layout."""
+    # Arrange components on the grid based on breadth-first layering.
     positions: Dict[int, tuple[int, int]] = {}
     layers: List[List] = []
     visited = set()

@@ -45,6 +45,7 @@ THEMES: Dict[str, Theme] = {
 
 
 def get_theme(_theme_id: str | None = None) -> Theme:
+    # Retrieve a theme by identifier, defaulting to the bundled light theme.
     return THEMES["light"]
 
 

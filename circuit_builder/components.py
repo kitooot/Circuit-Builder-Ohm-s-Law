@@ -37,6 +37,7 @@ class CircuitComponent:
         on_request_remove: Callable[["CircuitComponent"], None],
         theme: Theme | None = None,
     ) -> None:
+        # Initialize the component widget, state, and interaction bindings.
         self.canvas = canvas
         self.type = comp_type
         self.x = int(x)
@@ -183,6 +184,7 @@ class CircuitComponent:
             widget.bind("<Button-3>", self._on_right_click, add="+")
 
     def _component_detail_text(self) -> str:
+        # Provide a human-readable description summarizing the component state.
         if self.type == "battery":
             text = f"{self.voltage_value:.2f} V source"
             if self.active and self.operating_current > 0:
@@ -206,10 +208,12 @@ class CircuitComponent:
         return COMPONENT_PROPS[self.type]["label"]
 
     def _update_detail_text(self) -> None:
+        # Refresh the descriptive label text to reflect current metrics.
         if self.detail_label:
             self.detail_label.configure(text=self._component_detail_text())
 
     def apply_theme(self, theme: Theme) -> None:
+        # Apply theme colors and highlight states to the component widget.
         self.theme = theme
         bg = self.host_bg if not self.locked else theme.surface
         fg_primary = theme.text_primary
@@ -238,6 +242,7 @@ class CircuitComponent:
         self._draw_visual_representation()
 
     def _build_context_menu(self) -> None:
+        # Configure the context menu actions for the component.
         if self._context_menu:
             self._context_menu.destroy()
         menu = tk.Menu(self.frame, tearoff=False)
@@ -255,6 +260,7 @@ class CircuitComponent:
         self._context_menu = menu
 
     def _on_right_click(self, event: tk.Event) -> None:
+        # Show the context menu at the cursor location when right-clicked.
         if self._context_menu is None:
             self._build_context_menu()
         if self._context_menu:
@@ -264,21 +270,25 @@ class CircuitComponent:
                 self._context_menu.grab_release()
 
     def toggle_lock(self) -> None:
+        # Toggle whether the component can be dragged on the canvas.
         self.locked = not self.locked
         self._build_context_menu()
         self.apply_theme(self.theme)
 
     def rotate(self) -> None:
+        # Switch the component orientation and redraw terminals and visuals.
         self.orientation = "vertical" if self.orientation == "horizontal" else "horizontal"
         self._draw_terminal_indicators()
         self._notify_attached_wires()
         self.apply_theme(self.theme)
 
     def duplicate(self) -> None:
+        # Request a duplicate of this component via the provided callback.
         if self.on_request_duplicate:
             self.on_request_duplicate(self)
 
     def reset_operating_metrics(self) -> None:
+        # Clear any runtime electrical metrics shown on the component.
         self.operating_current = 0.0
         self.operating_voltage = 0.0
         self.operating_power = 0.0
@@ -286,6 +296,7 @@ class CircuitComponent:
         self._draw_visual_representation()
 
     def update_operating_metrics(self, current: float, voltage: float, power: float) -> None:
+        # Store and display operating metrics computed by the analyzer.
         self.operating_current = max(current, 0.0)
         self.operating_voltage = max(voltage, 0.0)
         self.operating_power = max(power, 0.0)
@@ -293,6 +304,7 @@ class CircuitComponent:
         self._draw_visual_representation()
 
     def _nominal_reference(self) -> float:
+        # Derive a reference power/current level for intensity visualization.
         if self.type in ("resistor", "bulb"):
             if self.resistance_value > 0 and (self.operating_voltage > 0 or self.voltage_value > 0):
                 voltage = self.operating_voltage if self.operating_voltage > 0 else self.voltage_value
@@ -303,6 +315,7 @@ class CircuitComponent:
         return 1.0
 
     def _intensity_ratio(self) -> float:
+        # Compute a normalized intensity value for visual highlighting.
         reference = self._nominal_reference()
         if self.operating_power > 0 and reference > 0:
             ratio = self.operating_power / reference
@@ -314,14 +327,17 @@ class CircuitComponent:
 
     @staticmethod
     def _hex_to_rgb(value: str) -> Tuple[int, int, int]:
+        # Convert a hexadecimal color string into RGB tuple form.
         value = value.lstrip("#")
         return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
 
     @staticmethod
     def _rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
+        # Convert an RGB tuple back into a hexadecimal color string.
         return "#" + "".join(f"{channel:02x}" for channel in rgb)
 
     def _mix_color(self, start_hex: str, end_hex: str, ratio: float) -> str:
+        # Blend two colors together based on the provided ratio.
         ratio = max(0.0, min(ratio, 1.0))
         start_rgb = self._hex_to_rgb(start_hex)
         end_rgb = self._hex_to_rgb(end_hex)
@@ -332,15 +348,18 @@ class CircuitComponent:
         return self._rgb_to_hex(blended)
 
     def _visual_base_dimensions(self) -> tuple[int, int]:
+        # Supply the default width and height for the visual canvas.
         return 120, 80
 
     def _visual_dimensions(self) -> tuple[int, int]:
+        # Provide orientation-aware drawing dimensions.
         width, height = self._visual_base_dimensions()
         if self.orientation == "horizontal":
             return width, height
         return height, width
 
     def _transform_point(self, x: float, y: float) -> tuple[float, float]:
+        # Rotate a point if the component is in vertical orientation.
         if self.orientation == "horizontal":
             return x, y
         base_width, base_height = self._visual_base_dimensions()
@@ -354,6 +373,7 @@ class CircuitComponent:
         return cx_vert + x_rot, cy_vert + y_rot
 
     def _transform_coords(self, coords: List[float]) -> List[float]:
+        # Apply orientation transforms to a list of coordinate pairs.
         transformed: List[float] = []
         for x, y in zip(coords[0::2], coords[1::2]):
             tx, ty = self._transform_point(x, y)
@@ -361,6 +381,7 @@ class CircuitComponent:
         return transformed
 
     def _transform_box(self, box: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+        # Adjust a bounding box to account for the current orientation.
         x1, y1, x2, y2 = box
         corners = [
             self._transform_point(x1, y1),
@@ -373,29 +394,34 @@ class CircuitComponent:
         return min(xs), min(ys), max(xs), max(ys)
 
     def _transform_angle(self, angle: float) -> float:
+        # Rotate an angle when drawing arcs in vertical orientation.
         if self.orientation == "horizontal":
             return angle
         return (angle + 90.0) % 360.0
 
     def _vc_line(self, coords: List[float], **kwargs: object) -> None:
+        # Draw a line on the visual canvas respecting orientation.
         if not self.visual_canvas:
             return
         transformed = self._transform_coords(coords)
         self.visual_canvas.create_line(*transformed, **kwargs)
 
     def _vc_rectangle(self, box: tuple[float, float, float, float], **kwargs: object) -> None:
+        # Draw a rectangle on the visual canvas with orientation adjustments.
         if not self.visual_canvas:
             return
         transformed = self._transform_box(box)
         self.visual_canvas.create_rectangle(*transformed, **kwargs)
 
     def _vc_oval(self, box: tuple[float, float, float, float], **kwargs: object) -> None:
+        # Render an oval respecting the current orientation.
         if not self.visual_canvas:
             return
         transformed = self._transform_box(box)
         self.visual_canvas.create_oval(*transformed, **kwargs)
 
     def _vc_arc(self, box: tuple[float, float, float, float], start: float, extent: float, **kwargs: object) -> None:
+        # Draw an arc on the visual canvas with adjusted angles.
         if not self.visual_canvas:
             return
         transformed_box = self._transform_box(box)
@@ -403,18 +429,21 @@ class CircuitComponent:
         self.visual_canvas.create_arc(*transformed_box, start=start_angle, extent=extent, **kwargs)
 
     def _vc_polygon(self, coords: List[float], **kwargs: object) -> None:
+        # Render a polygon with orientation-aware coordinates.
         if not self.visual_canvas:
             return
         transformed = self._transform_coords(coords)
         self.visual_canvas.create_polygon(*transformed, **kwargs)
 
     def _vc_text(self, x: float, y: float, **kwargs: object) -> None:
+        # Place text onto the visual canvas after transforming the point.
         if not self.visual_canvas:
             return
         tx, ty = self._transform_point(x, y)
         self.visual_canvas.create_text(tx, ty, **kwargs)
 
     def _draw_visual_representation(self) -> None:
+        # Redraw the schematic representation matching the component type.
         if not self.visual_canvas:
             return
         self.visual_canvas.delete("all")
@@ -443,6 +472,7 @@ class CircuitComponent:
             self._draw_wire_visual(active)
 
     def _draw_battery_visual(self, active: bool) -> None:
+        # Render a stylized battery, highlighting when active.
         ratio = self._intensity_ratio() if active else 0.0
         casing_fill = self._mix_color("#fcd34d", "#f59e0b", ratio)
         cell_fill = self._mix_color("#fda4af", "#f87171", ratio)
@@ -470,6 +500,7 @@ class CircuitComponent:
         self._vc_text(55, 66, text=f"{self.resistance_value:.1f} Ω", font=("Arial", 10, "bold"), fill=text_color)
 
     def _draw_bulb_visual(self, active: bool) -> None:
+        # Draw a light bulb graphic with glow tied to active power.
         ratio = self._intensity_ratio() if active else 0.0
         glow_fill = self._mix_color("#f3f4f6", "#fde68a", ratio)
         outline_color = self._mix_color("#cbd5f5", "#facc15", ratio)
@@ -485,6 +516,7 @@ class CircuitComponent:
         self._vc_rectangle((48, 76, 62, 82), fill=base_color, outline=base_color)
 
     def _draw_switch_visual(self, active: bool) -> None:
+        # Illustrate the switch state and highlight when current flows.
         closed = self.is_switch_closed()
         highlight_ratio = 1.0 if active and closed else (0.0 if not closed else 0.4)
         lead_color = self._mix_color("#64748b", "#2563eb", highlight_ratio)
@@ -511,6 +543,7 @@ class CircuitComponent:
         self._vc_text(60, 82, text=label, font=("Arial", 9, "bold"), fill="#1f2937")
 
     def _draw_capacitor_visual(self, active: bool) -> None:
+        # Depict a capacitor with color indicating active status.
         plate_color = "#0ea5e9" if active else "#38bdf8"
         self._vc_line([6, 40, 42, 40], fill="#475569", width=3)
         self._vc_line([42, 20, 42, 60], fill=plate_color, width=4)
@@ -527,6 +560,7 @@ class CircuitComponent:
         self._vc_text(55, 68, text=f"{self.forward_voltage:.1f} V", font=("Arial", 9, "bold"), fill="#0f172a")
 
     def _draw_meter_visual(self, active: bool) -> None:
+        # Render an ammeter or voltmeter with a responsive needle.
         ratio = self._intensity_ratio() if active else 0.0
         shell_color = self._mix_color("#e5e7eb", "#22c55e", ratio)
         self._vc_rectangle((24, 18, 96, 72), fill=shell_color, outline="#111827", width=2)
@@ -549,11 +583,13 @@ class CircuitComponent:
         self._vc_line([52, 70, 60, 70], fill=color, width=4)
 
     def _draw_wire_visual(self, active: bool) -> None:
+        # Draw a straight wire segment with activity-based color.
         ratio = self._intensity_ratio() if active else 0.0
         wire_color = self._mix_color("#64748b", "#10b981", ratio)
         self._vc_line([8, 40, 102, 40], fill=wire_color, width=5, capstyle=tk.ROUND)
 
     def _on_press(self, event: tk.Event) -> None:
+        # Begin dragging by capturing pointer offsets and raising the widget.
         if not self.frame or self.locked:
             return
         self.dragging = True
@@ -563,6 +599,7 @@ class CircuitComponent:
         self.pointer_offset_y = event.y_root - self.frame.winfo_rooty()
 
     def _on_drag(self, event: tk.Event) -> None:
+        # Update the component position while dragging with grid snapping.
         if not self.dragging or not self.frame or self.window_id is None or self.locked:
             return
         now = time.time() * 1000
@@ -589,6 +626,7 @@ class CircuitComponent:
         self._move_to(snapped_x, snapped_y)
 
     def _on_release(self, _event: tk.Event) -> None:
+        # Finish dragging and notify listeners of the move.
         if not self.dragging:
             return
         self.dragging = False
@@ -596,6 +634,7 @@ class CircuitComponent:
             self.on_change(self)
 
     def _on_double_click(self, _event: tk.Event) -> None:
+        # Open value-edit dialogs or toggle switches on double-click.
         if self.type == "battery":
             new_voltage = simpledialog.askfloat(
                 "Adjust Battery",
@@ -628,6 +667,7 @@ class CircuitComponent:
             self.on_change(self)
 
     def toggle_switch(self) -> None:
+        # Toggle the internal switch state and update visuals.
         if not self.is_switch():
             return
         self.switch_closed = not self.switch_closed
@@ -637,12 +677,15 @@ class CircuitComponent:
             self.on_change(self)
 
     def is_switch(self) -> bool:
+        # Check if this component type is considered a switch.
         return self.type in SWITCH_TYPES
 
     def is_switch_closed(self) -> bool:
+        # Report whether the switch contacts are currently closed.
         return not self.is_switch() or self.switch_closed
 
     def _move_to(self, x: int, y: int) -> None:
+        # Move the component window to a clamped canvas position.
         if self.window_id is None:
             return
         if self.frame is None:
@@ -658,6 +701,7 @@ class CircuitComponent:
         self._notify_attached_wires()
 
     def _current_dimensions(self) -> tuple[int, int]:
+        # Measure the current widget size to aid placement.
         if self.frame is None:
             return self.base_width, self.base_height
         width = self.frame.winfo_width() or self.frame.winfo_reqwidth() or self.base_width
@@ -665,15 +709,18 @@ class CircuitComponent:
         return int(width), int(height)
 
     def _canvas_bounds(self) -> tuple[int, int]:
+        # Look up the canvas width and height for boundary clamping.
         width = int(self.canvas.winfo_width() or self.canvas.winfo_reqwidth() or CANVAS_WIDTH)
         height = int(self.canvas.winfo_height() or self.canvas.winfo_reqheight() or CANVAS_HEIGHT)
         return width, height
 
     def center(self) -> tuple[float, float]:
+        # Return the geometric center of the component widget.
         width, height = self._current_dimensions()
         return self.x + width / 2, self.y + height / 2
 
     def anchor_point(self, side: str) -> tuple[float, float]:
+        # Provide the connection point coordinates for a given side.
         width, height = self._current_dimensions()
         cy = self.y + height / 2
         if self.orientation == "vertical":
@@ -697,12 +744,15 @@ class CircuitComponent:
         return self.center()
 
     def get_resistance(self) -> float:
+        # Return the configured resistance value for this component.
         return self.resistance_value
 
     def get_voltage(self) -> float:
+        # Provide the voltage contribution if the component is a battery.
         return self.voltage_value if self.type == "battery" else 0.0
 
     def remove(self) -> None:
+        # Remove the component from the canvas and detach wires.
         for side, wires in self.connected_wires.items():
             for wire in list(wires):
                 wire.detach_component(self)
@@ -717,6 +767,7 @@ class CircuitComponent:
             self.on_request_remove(self)
 
     def set_active(self, active: bool) -> None:
+        # Highlight the component when it is part of the energized circuit.
         if self.frame is None:
             return
         self.active = active
@@ -733,12 +784,14 @@ class CircuitComponent:
         self._update_detail_text()
 
     def attach_wire(self, wire: "CircuitWire", side: str) -> None:
+        # Track wires connected to the given terminal side.
         if side not in self.connected_wires:
             self.connected_wires[side] = set()
         self.connected_wires[side].add(wire)
         self._notify_attached_wires()
 
     def detach_wire(self, wire: "CircuitWire", side: str | None = None) -> None:
+        # Detach a wire reference from this component's terminals.
         if side:
             if side in self.connected_wires and wire in self.connected_wires[side]:
                 self.connected_wires[side].discard(wire)
@@ -747,12 +800,14 @@ class CircuitComponent:
                 wires.discard(wire)
 
     def _notify_attached_wires(self) -> None:
+        # Update connected wires with new anchor coordinates.
         for side, wires in self.connected_wires.items():
             anchor = self.anchor_point(side)
             for wire in list(wires):
                 wire.update_attachment_position(self, side, anchor)
 
     def _draw_terminal_indicators(self) -> None:
+        # Create visual markers for component connection terminals.
         for dot in self.terminal_canvases:
             dot.destroy()
         self.terminal_canvases.clear()

@@ -16,6 +16,7 @@ class ProjectFile:
     metadata: Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
+        # Convert the project file into a JSON-serializable mapping.
         return {
             "components": self.components,
             "wires": self.wires,
@@ -24,6 +25,7 @@ class ProjectFile:
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "ProjectFile":
+        # Build a project file instance from stored JSON data.
         components = payload.get("components", [])
         wires = payload.get("wires", [])
         metadata = payload.get("metadata", {})
@@ -35,6 +37,7 @@ class StorageError(Exception):
 
 
 def save_project(path: str, data: ProjectFile) -> None:
+    # Persist the given project file to disk as JSON.
     try:
         directory = os.path.dirname(path)
         if directory:
@@ -47,6 +50,7 @@ def save_project(path: str, data: ProjectFile) -> None:
 
 
 def load_project(path: str) -> ProjectFile:
+    # Load and parse a project file from disk.
     try:
         with open(path, "r", encoding="utf-8") as handle:
             payload = json.load(handle)
@@ -57,6 +61,7 @@ def load_project(path: str) -> ProjectFile:
 
 
 def serialize_components(components: List[Any]) -> List[Dict[str, Any]]:
+    # Record component properties needed to recreate them later.
     serialized: List[Dict[str, Any]] = []
     for component in components:
         serialized.append({
@@ -76,6 +81,7 @@ def serialize_components(components: List[Any]) -> List[Dict[str, Any]]:
 
 
 def serialize_wires(wires: List[Any]) -> List[Dict[str, Any]]:
+    # Capture wire geometry and attachment references for serialization.
     serialized: List[Dict[str, Any]] = []
     for wire in wires:
         serialized.append({
@@ -96,6 +102,7 @@ def deserialize_project(
     component_factory,
     wire_factory,
 ) -> Tuple[List[Any], List[Any]]:
+    # Recreate component and wire instances from serialized project data.
     components_lookup: Dict[int, Any] = {}
     components: List[Any] = []
     for data in payload.components:

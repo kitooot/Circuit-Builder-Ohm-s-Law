@@ -6,6 +6,7 @@ from circuit_builder.app import OhmsLawApp
 
 
 def main() -> None:
+    # Initialize and run the Ohm's Law application window.
     root = tk.Tk()
     app = OhmsLawApp(root)
     root.mainloop()

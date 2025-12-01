@@ -17,6 +17,7 @@ from .wires import CircuitWire
 
 class OhmsLawApp:
     def __init__(self, root: tk.Tk):
+        # Set up the main application window and initialize state containers.
         self.root = root
         self.root.title("Ohm's Law & Circuit Builder")
         self.root.geometry("1200x700")
@@ -53,6 +54,7 @@ class OhmsLawApp:
     # UI Construction & Layout
     # ------------------------------------------------------------------
     def _create_widgets(self) -> None:
+        # Build all UI panels and wire up interactive bindings.
         self._build_header()
         main_frame = self._build_main_frame()
 
@@ -68,6 +70,7 @@ class OhmsLawApp:
         self._initialize_analysis_state()
 
     def _build_header(self) -> None:
+        # Create the top banner introducing the app and its purpose.
         header = tk.Frame(self.root, bg="#ffffff", relief=tk.RAISED, bd=1)
         header.pack(side=tk.TOP, fill=tk.X, padx=0, pady=0)
 
@@ -88,6 +91,7 @@ class OhmsLawApp:
         ).pack(pady=(0, 12))
 
     def _build_main_frame(self) -> tk.Frame:
+        # Assemble the root frame that houses the side panels and canvas.
         main_frame = tk.Frame(self.root, bg="#f0f0f0")
         main_frame.pack(fill=tk.BOTH, expand=True)
         main_frame.grid_rowconfigure(0, weight=1)
@@ -97,12 +101,14 @@ class OhmsLawApp:
         return main_frame
 
     def _build_left_panel(self, main_frame: tk.Frame) -> tk.Frame:
+        # Create the left sidebar used for component palette and help.
         left_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(5, 2), pady=5)
         left_panel.grid_propagate(True)
         return left_panel
 
     def _populate_component_palette(self, left_panel: tk.Frame) -> None:
+        # Fill the palette with buttons representing placeable components.
         tk.Label(left_panel, text="Component Palette", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=(10, 5))
 
         palette = [
@@ -147,6 +153,7 @@ class OhmsLawApp:
                 widget.configure(cursor="hand2")
 
             def make_handler(item_type: str):
+                # Return a click handler that adds the chosen item.
                 if item_type == "wire":
                     return lambda _event=None: self._add_wire()
                 return lambda _event=None: self._add_component(item_type)
@@ -166,6 +173,7 @@ class OhmsLawApp:
     def _build_help_section(
         self, left_panel: tk.Frame
     ) -> Tuple[tk.Frame, tk.Label, tk.Label, List[tk.Label]]:
+        # Construct the collapsible quick tips section in the palette.
         help_frame = tk.Frame(left_panel, bg="#f0f9ff", relief=tk.RIDGE, bd=1, cursor="hand2")
         help_frame.pack(side=tk.BOTTOM, pady=10, padx=8, fill=tk.X)
         self.help_frame = help_frame
@@ -215,6 +223,7 @@ class OhmsLawApp:
         help_hint: tk.Label,
         tip_labels: List[tk.Label],
     ) -> None:
+        # Attach double-click bindings to open the extended tips dialog.
         help_frame.bind("<Double-1>", self._show_tips_dialog)
         help_title.bind("<Double-1>", self._show_tips_dialog)
         help_hint.bind("<Double-1>", self._show_tips_dialog)
@@ -222,6 +231,7 @@ class OhmsLawApp:
             label.bind("<Double-1>", self._show_tips_dialog)
 
     def _build_canvas_panel(self, main_frame: tk.Frame) -> None:
+        # Set up the central drawing canvas and status controls.
         canvas_frame = tk.Frame(main_frame, bg="#f0f0f0")
         canvas_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         canvas_frame.grid_rowconfigure(1, weight=1)
@@ -276,6 +286,7 @@ class OhmsLawApp:
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
     def _build_right_panel(self, main_frame: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
+        # Create the right sidebar with calculators and analysis readouts.
         right_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
         right_panel.grid(row=0, column=2, sticky="nsew", padx=(2, 5), pady=5)
         right_panel.grid_propagate(True)
@@ -295,6 +306,7 @@ class OhmsLawApp:
         return analysis_frame, analysis_title
 
     def _build_formula_section(self, right_panel: tk.Frame) -> None:
+        # Show the Ohm's law identity as a quick reference.
         formula_frame = tk.Frame(right_panel, bg="white", relief=tk.RAISED, bd=1)
         formula_frame.pack(padx=10, pady=5, fill=tk.X)
         tk.Label(
@@ -306,6 +318,7 @@ class OhmsLawApp:
         ).pack(pady=10)
 
     def _build_calculator_entries(self, right_panel: tk.Frame) -> None:
+        # Prepare read-only entry fields for displaying computed values.
         v_frame = tk.Frame(right_panel, bg="#ffffff")
         v_frame.pack(padx=10, pady=5, fill=tk.X)
         tk.Label(v_frame, text="Voltage (V)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
@@ -331,6 +344,7 @@ class OhmsLawApp:
         self.p_entry.pack(fill=tk.X, padx=5, pady=2)
 
     def _build_info_section(self, right_panel: tk.Frame) -> None:
+        # Add instructional copy guiding users on building circuits.
         info_frame = tk.Frame(right_panel, bg="#ecfdf5", relief=tk.RAISED, bd=1)
         info_frame.pack(padx=10, pady=10, fill=tk.X)
         tk.Label(
@@ -351,6 +365,7 @@ class OhmsLawApp:
         ).pack(padx=8, pady=(0, 5))
 
     def _build_analysis_panel(self, right_panel: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
+        # Create the collapsible analysis summary section.
         analysis_frame = tk.Frame(right_panel, bg="#f8fafc", relief=tk.RIDGE, bd=1, cursor="hand2")
         analysis_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
         self.analysis_frame = analysis_frame
@@ -438,6 +453,7 @@ class OhmsLawApp:
         return analysis_frame, analysis_title
 
     def _bind_analysis_events(self, analysis_frame: tk.Frame, analysis_title: tk.Label) -> None:
+        # Allow double-clicking the analysis panel to open detailed insight.
         analysis_frame.bind("<Double-1>", self._show_insight_info)
         analysis_title.bind("<Double-1>", self._show_insight_info)
         for child in analysis_frame.winfo_children():
@@ -448,6 +464,7 @@ class OhmsLawApp:
                 continue
 
     def _initialize_analysis_state(self) -> None:
+        # Seed the analysis panel with default values before any components exist.
         initial_analysis = {
             "component_count": 0,
             "wire_count": 0,
@@ -467,6 +484,7 @@ class OhmsLawApp:
         self.latest_analysis = dict(initial_analysis)
 
     def _set_palette_tile_state(self, tile: tk.Frame, hover: bool) -> None:
+        # Adjust palette tile styling in response to hover state changes.
         base_bg = "#f8fafc"
         hover_bg = "#e0f2fe"
         base_border = "#cbd5f5"
@@ -481,9 +499,11 @@ class OhmsLawApp:
                 continue
 
     def _flash_panel(self, panel: tk.Frame, highlight_bg: str = "#dbeafe") -> None:
+        # Temporarily flash a panel background to draw user attention.
         originals: Dict[tk.Widget, str] = {}
 
         def _collect(widget: tk.Widget) -> None:
+            # Capture and temporarily replace a widget's background color.
             try:
                 originals[widget] = widget.cget("bg")
                 widget.configure(bg=highlight_bg)
@@ -495,6 +515,7 @@ class OhmsLawApp:
             _collect(child)
 
         def _restore() -> None:
+            # Restore each widget's original background color.
             for widget, color in originals.items():
                 try:
                     widget.configure(bg=color)
@@ -504,6 +525,7 @@ class OhmsLawApp:
         panel.after(220, _restore)
 
     def _open_modal(self, title: str, lines: List[str], accent: str = "#2563eb") -> None:
+        # Present a modal dialog with a list of informational bullet points.
         modal = tk.Toplevel(self.root)
         modal.title(title)
         modal.configure(bg="#0f172a")
@@ -561,6 +583,7 @@ class OhmsLawApp:
         ).pack(side=tk.RIGHT)
 
     def _center_window(self, window: tk.Toplevel, width: int, height: int) -> None:
+        # Position a child window centered relative to the main window.
         self.root.update_idletasks()
         root_x = self.root.winfo_rootx()
         root_y = self.root.winfo_rooty()
@@ -571,6 +594,7 @@ class OhmsLawApp:
         window.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
 
     def _feature_lines(self) -> List[str]:
+        # Provide the list of quick tips describing available interactions.
         return [
             "Left-click a palette tile to add its component or wire to the canvas.",
             "Drag components around the grid to reposition them precisely.",
@@ -586,9 +610,11 @@ class OhmsLawApp:
         ]
 
     def _formatted_feature_text(self) -> str:
+        # Format feature lines as a bullet-separated string.
         return "\n".join(f"• {line}" for line in self._feature_lines())
 
     def _show_functions(self) -> None:
+        # Display the full list of circuit functions in a modal window.
         lines = self._feature_lines()
         message = "\n".join(f"• {line}" for line in lines)
         if self.functions_display is not None:
@@ -598,6 +624,7 @@ class OhmsLawApp:
         self._open_modal("Circuit Functions", lines, accent="#2563eb")
 
     def _show_tips_dialog(self, _event: Optional[tk.Event] = None) -> None:
+        # Pop up the quick tips dialog when users request more guidance.
         lines = self._feature_lines()
         message = "\n".join(f"• {line}" for line in lines)
         if self.functions_display is not None:
@@ -607,6 +634,7 @@ class OhmsLawApp:
         self._open_modal("Circuit Quick Tips", lines, accent="#0ea5e9")
 
     def _insight_lines(self) -> List[str]:
+        # Return default descriptions for the insight modal when no data exists.
         return [
             "Type indicates whether the circuit is open, complete, or follows a series/parallel path.",
             "Status summarises if the circuit is powered, open, or needs attention (Alert).",
@@ -617,6 +645,7 @@ class OhmsLawApp:
         ]
 
     def _show_insight_info(self, _event: Optional[tk.Event] = None) -> None:
+        # Summarize the current analysis results in a modal window.
         if self.latest_analysis:
             lines: List[str] = [
                 self.circuit_type_var.get(),
@@ -641,11 +670,13 @@ class OhmsLawApp:
         self._open_modal("Circuit Insight Guide", lines, accent="#f59e0b")
 
     def _toggle_fullscreen(self, _event: Optional[tk.Event] = None) -> str:
+        # Toggle the window between fullscreen and windowed modes.
         self.fullscreen = not self.fullscreen
         self.root.attributes("-fullscreen", self.fullscreen)
         return "break"
 
     def _exit_fullscreen(self, _event: Optional[tk.Event] = None) -> Optional[str]:
+        # Exit fullscreen mode when the user presses Escape.
         if self.fullscreen:
             self.fullscreen = False
             self.root.attributes("-fullscreen", False)
@@ -653,6 +684,7 @@ class OhmsLawApp:
         return None
 
     def _draw_grid(self) -> None:
+        # Render a dotted grid background for precise component placement.
         width = getattr(self, "canvas_width", CANVAS_WIDTH)
         height = getattr(self, "canvas_height", CANVAS_HEIGHT)
         for x in range(0, width, GRID_SIZE):
@@ -664,6 +696,7 @@ class OhmsLawApp:
     # Canvas & Component Management
     # ------------------------------------------------------------------
     def _on_canvas_configure(self, event: tk.Event) -> None:
+        # Redraw the grid when the canvas size changes.
         if event.width <= 0 or event.height <= 0:
             return
         if event.width == getattr(self, "canvas_width", 0) and event.height == getattr(self, "canvas_height", 0):
@@ -674,10 +707,12 @@ class OhmsLawApp:
         self._draw_grid()
 
     def _register_component(self, component: CircuitComponent) -> None:
+        # Track a new component and provide duplication support.
         component.on_request_duplicate = self._duplicate_component
         self.components.append(component)
 
     def _add_component(self, comp_type: str) -> None:
+        # Place a new component instance onto the canvas.
         canvas_width = int(getattr(self, "canvas_width", CANVAS_WIDTH))
         canvas_height = int(getattr(self, "canvas_height", CANVAS_HEIGHT))
         x = canvas_width // 2 + random.randint(-100, 100)
@@ -708,6 +743,7 @@ class OhmsLawApp:
         self._calculate_circuit()
 
     def _duplicate_component(self, component: CircuitComponent) -> None:
+        # Clone an existing component's configuration nearby on the canvas.
         canvas_width = int(getattr(self, "canvas_width", CANVAS_WIDTH))
         canvas_height = int(getattr(self, "canvas_height", CANVAS_HEIGHT))
         comp_type = component.type
@@ -762,6 +798,7 @@ class OhmsLawApp:
         self._calculate_circuit()
 
     def _add_wire(self) -> None:
+        # Introduce a standalone wire segment ready for connections.
         canvas_width = int(getattr(self, "canvas_width", CANVAS_WIDTH))
         canvas_height = int(getattr(self, "canvas_height", CANVAS_HEIGHT))
         x = canvas_width // 2
@@ -778,9 +815,11 @@ class OhmsLawApp:
         self._calculate_circuit()
 
     def _on_component_changed(self, _component: CircuitComponent) -> None:
+        # Recalculate the circuit when a component changes.
         self._calculate_circuit()
 
     def _on_component_removed(self, component: CircuitComponent) -> None:
+        # Remove a component and detach any linked wires.
         if component in self.components:
             self.components.remove(component)
         for wire in self.wires[:]:
@@ -788,16 +827,19 @@ class OhmsLawApp:
         self._calculate_circuit()
 
     def _on_wire_changed(self, _wire: CircuitWire) -> None:
+        # Re-run calculations when a wire is adjusted.
         if self._auto_snap_guard:
             return
         self._calculate_circuit()
 
     def _on_wire_removed(self, wire: CircuitWire) -> None:
+        # Clean up when a wire is deleted from the canvas.
         if wire in self.wires:
             self.wires.remove(wire)
         self._calculate_circuit()
 
     def _auto_snap_connections(self) -> None:
+        # Connect wires to nearby terminals automatically when possible.
         if self._auto_snap_guard:
             return
         self._auto_snap_guard = True
@@ -828,12 +870,14 @@ class OhmsLawApp:
         exclude_endpoint: Optional[str] = None,
         threshold: float = 36.0,
     ) -> tuple[Any | None, Any, tuple[float, float]]:
+        # Find the closest component or wire connector to the given point.
         target: Any | None = None
         identifier: Any = None
         snap_point: tuple[float, float] = (x, y)
         best_distance = threshold
 
         def project_point(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> tuple[float, float]:
+            # Project point p onto segment ab to find the closest spot.
             dx = bx - ax
             dy = by - ay
             if dx == 0 and dy == 0:
@@ -895,11 +939,13 @@ class OhmsLawApp:
     # Analysis & Status Updates
     # ------------------------------------------------------------------
     def _update_component_highlights(self, active_group: Optional[List[CircuitComponent]]) -> None:
+        # Highlight components that belong to the currently active circuit path.
         active_ids = {comp.id for comp in active_group} if active_group else set()
         for comp in self.components:
             comp.set_active(comp.id in active_ids)
 
     def _update_analysis_panel(self, analysis: Dict[str, Any]) -> None:
+        # Populate the analysis widgets with the latest computed metrics.
         circuit_type = analysis.get("type", "Open")
         status_detail = analysis.get("status_detail", "Open Circuit")
         status_state = analysis.get("status", "Open")
@@ -960,6 +1006,7 @@ class OhmsLawApp:
         self.circuit_issue_label.config(text=issues_text)
 
     def _calculate_circuit(self) -> None:
+        # Perform a fresh analysis and update UI elements accordingly.
         self._auto_snap_connections()
         analysis, active_group, active_wires, component_metrics = analyze_circuit(self.components, self.wires)
 
@@ -1061,6 +1108,7 @@ class OhmsLawApp:
     
 
     def _reset_values(self, status_text: str = "⚫ Open Circuit", status_color: str = "#9ca3af") -> None:
+        # Clear metric displays and update the status label to the provided state.
         self.v_entry.config(state="normal")
         self.i_entry.config(state="normal")
         self.r_entry.config(state="normal")
@@ -1088,6 +1136,7 @@ class OhmsLawApp:
             self.status_label.config(fg=status_color)
 
     def _reset_circuit(self) -> None:
+        # Remove all components and wires, then redraw a clean canvas.
         for comp in self.components[:]:
             comp.remove()
         self.components.clear()

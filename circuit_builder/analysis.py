@@ -26,10 +26,12 @@ SWITCH_TYPES: Set[str] = {"switch", "switch_spst", "switch_spdt"}
 
 
 def expected_connections(component: CircuitComponent) -> int:
+    # Return the required number of connected terminals for this component type.
     return TERMINAL_REQUIREMENTS.get(component.type, 2)
 
 
 def _is_passive_load(component: CircuitComponent) -> bool:
+    # Check whether the component should behave like a passive load in analysis.
     if component.type in PASSIVE_LOAD_TYPES:
         return component.get_resistance() > 0
     if component.type == "battery":
@@ -39,10 +41,12 @@ def _is_passive_load(component: CircuitComponent) -> bool:
 
 
 def _is_switch(component: CircuitComponent) -> bool:
+    # Determine if the component is treated as a switch.
     return component.type in SWITCH_TYPES
 
 
 def _is_switch_closed(component: CircuitComponent) -> bool:
+    # Inspect a switch component to see if its contacts are closed.
     if not _is_switch(component):
         return True
     return getattr(component, "switch_closed", True)
@@ -53,6 +57,7 @@ def classify_circuit(
     adjacency: Adjacency,
     loads: List[CircuitComponent],
 ) -> str:
+    # Infer whether the connected group functions as series, parallel, or single load.
     if len(loads) <= 1:
         return "Single Load"
 
@@ -68,6 +73,7 @@ def describe_active_path(
     adjacency: Adjacency,
     batteries: List[CircuitComponent],
 ) -> str:
+    # Build a readable path description by traversing the energized graph.
     if not component_group:
         return "—"
 
@@ -100,6 +106,7 @@ def compute_circuit_metrics(
     loads: List[CircuitComponent],
     circuit_type: str,
 ) -> tuple[AnalysisDict, ComponentMetrics, List[str]]:
+    # Calculate aggregate and per-component electrical metrics for the active circuit.
     summary: AnalysisDict = {
         "total_voltage": sum(component.get_voltage() for component in batteries),
         "total_resistance": 0.0,
@@ -205,6 +212,7 @@ def analyze_circuit(
     components: List[CircuitComponent],
     wires: List[CircuitWire],
 ) -> tuple[AnalysisDict, Optional[List[CircuitComponent]], Optional[List[CircuitWire]], ComponentMetrics]:
+    # Evaluate circuit connectivity and electrical characteristics from components and wires.
     analysis: AnalysisDict = {
         "component_count": len(components),
         "wire_count": len(wires),

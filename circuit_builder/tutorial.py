@@ -41,6 +41,7 @@ TUTORIAL_STEPS: List[TutorialStep] = [
 
 
 def iter_tutorial_steps() -> Iterable[TutorialStep]:
+    # Yield the tutorial steps in order for presentation.
     return iter(TUTORIAL_STEPS)
 
 
