@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 import tkinter as tk
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from .analysis import analyze_circuit
 from .components import CircuitComponent
 from .constants import (
@@ -812,7 +812,37 @@ class OhmsLawApp:
             self._find_nearest_connector,
         )
         self.wires.append(wire)
+        attached_count = self._attach_wire_endpoints_to_nearest_wires(wire)
+        if attached_count < 2:
+            self._auto_snap_connections()
         self._calculate_circuit()
+
+    def _attach_wire_endpoints_to_nearest_wires(self, wire: CircuitWire) -> int:
+        # Attempt to snap the provided wire's endpoints onto the closest existing wires.
+        attached = 0
+        used_targets: Set[CircuitWire] = set()
+        for endpoint in ("a", "b"):
+            if wire.attachments.get(endpoint):
+                attached += 1
+                continue
+            position = wire.positions.get(endpoint)
+            if not position:
+                continue
+            x, y = position
+            target, identifier, snap_point = self._find_nearest_connector(
+                x,
+                y,
+                exclude_wire=wire,
+                exclude_endpoint=endpoint,
+                threshold=64.0,
+                target_types=("wire",),
+                exclude_wires=used_targets if used_targets else None,
+            )
+            if isinstance(target, CircuitWire):
+                wire.attach_to_wire(endpoint, target, identifier, snap_point)
+                used_targets.add(target)
+                attached += 1
+        return attached
 
     def _on_component_changed(self, _component: CircuitComponent) -> None:
         # Recalculate the circuit when a component changes.
@@ -869,12 +899,21 @@ class OhmsLawApp:
         exclude_wire: Optional[CircuitWire] = None,
         exclude_endpoint: Optional[str] = None,
         threshold: float = 36.0,
+        target_types: Optional[Tuple[str, ...]] = None,
+        exclude_wires: Optional[Set[CircuitWire]] = None,
     ) -> tuple[Any | None, Any, tuple[float, float]]:
-        # Find the closest component or wire connector to the given point.
+        # Find the closest connector matching the requested filter at the given canvas point.
         target: Any | None = None
         identifier: Any = None
         snap_point: tuple[float, float] = (x, y)
         best_distance = threshold
+        allowed_components = target_types is None or "component" in target_types
+        allowed_wires = target_types is None or "wire" in target_types
+        skip_wires: Set[CircuitWire] = set()
+        if exclude_wire:
+            skip_wires.add(exclude_wire)
+        if exclude_wires:
+            skip_wires.update(exclude_wires)
 
         def project_point(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> tuple[float, float]:
             # Project point p onto segment ab to find the closest spot.
@@ -886,52 +925,54 @@ class OhmsLawApp:
             t = max(0.0, min(1.0, t))
             return ax + t * dx, ay + t * dy
 
-        for component in self.components:
-            for side in ("left", "right", "top", "bottom"):
-                cx, cy = component.anchor_point(side)
-                dist = ((cx - x) ** 2 + (cy - y) ** 2) ** 0.5
-                if dist <= best_distance:
-                    best_distance = dist
-                    target = component
-                    identifier = side
-                    snap_point = (cx, cy)
+        if allowed_components:
+            for component in self.components:
+                for side in ("left", "right", "top", "bottom"):
+                    cx, cy = component.anchor_point(side)
+                    dist = ((cx - x) ** 2 + (cy - y) ** 2) ** 0.5
+                    if dist <= best_distance:
+                        best_distance = dist
+                        target = component
+                        identifier = side
+                        snap_point = (cx, cy)
 
-        for wire in self.wires:
-            if wire is exclude_wire:
-                continue
-            for ep in ("a", "b"):
-                if wire is exclude_wire and ep == exclude_endpoint:
+        if allowed_wires:
+            for wire in self.wires:
+                if wire in skip_wires:
                     continue
-                wx, wy = wire.positions.get(ep, (0.0, 0.0))
-                dist = ((wx - x) ** 2 + (wy - y) ** 2) ** 0.5
-                if dist <= best_distance:
-                    best_distance = dist
-                    target = wire
-                    identifier = ep
-                    snap_point = (wx, wy)
-
-            path_points: List[Tuple[float, float]]
-            if hasattr(wire, "path_points"):
-                path_points = list(wire.path_points())
-            else:
-                path_points = [
-                    wire.positions.get("a", (0.0, 0.0)),
-                    wire.positions.get("b", (0.0, 0.0)),
-                ]
-            for idx in range(len(path_points) - 1):
-                ax, ay = path_points[idx]
-                bx, by = path_points[idx + 1]
-                px, py = project_point(x, y, ax, ay, bx, by)
-                dist = ((px - x) ** 2 + (py - y) ** 2) ** 0.5
-                if dist <= best_distance:
-                    end_a_dist = ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
-                    end_b_dist = ((px - bx) ** 2 + (py - by) ** 2) ** 0.5
-                    if min(end_a_dist, end_b_dist) < 6.0:
+                for ep in ("a", "b"):
+                    if wire is exclude_wire and exclude_endpoint and ep == exclude_endpoint:
                         continue
-                    best_distance = dist
-                    target = wire
-                    identifier = ("segment", px, py, idx)
-                    snap_point = (px, py)
+                    wx, wy = wire.positions.get(ep, (0.0, 0.0))
+                    dist = ((wx - x) ** 2 + (wy - y) ** 2) ** 0.5
+                    if dist <= best_distance:
+                        best_distance = dist
+                        target = wire
+                        identifier = ep
+                        snap_point = (wx, wy)
+
+                path_points: List[Tuple[float, float]]
+                if hasattr(wire, "path_points"):
+                    path_points = list(wire.path_points())
+                else:
+                    path_points = [
+                        wire.positions.get("a", (0.0, 0.0)),
+                        wire.positions.get("b", (0.0, 0.0)),
+                    ]
+                for idx in range(len(path_points) - 1):
+                    ax, ay = path_points[idx]
+                    bx, by = path_points[idx + 1]
+                    px, py = project_point(x, y, ax, ay, bx, by)
+                    dist = ((px - x) ** 2 + (py - y) ** 2) ** 0.5
+                    if dist <= best_distance:
+                        end_a_dist = ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+                        end_b_dist = ((px - bx) ** 2 + (py - by) ** 2) ** 0.5
+                        if min(end_a_dist, end_b_dist) < 6.0:
+                            continue
+                        best_distance = dist
+                        target = wire
+                        identifier = ("segment", px, py, idx)
+                        snap_point = (px, py)
 
         return target, identifier, snap_point
 

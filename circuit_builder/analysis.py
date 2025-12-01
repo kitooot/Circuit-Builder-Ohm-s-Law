@@ -56,10 +56,21 @@ def classify_circuit(
     component_group: List[CircuitComponent],
     adjacency: Adjacency,
     loads: List[CircuitComponent],
+    component_nodes: Optional[Dict[CircuitComponent, List[str]]] = None,
 ) -> str:
     # Infer whether the connected group functions as series, parallel, or single load.
     if len(loads) <= 1:
         return "Single Load"
+
+    if component_nodes:
+        node_pair_counts: Dict[Tuple[str, str], int] = {}
+        for load in loads:
+            nodes = sorted({node for node in component_nodes.get(load, []) if node is not None})
+            if len(nodes) >= 2:
+                pair = (nodes[0], nodes[1])
+                node_pair_counts[pair] = node_pair_counts.get(pair, 0) + 1
+        if any(count >= 2 for count in node_pair_counts.values()):
+            return "Parallel"
 
     branch_nodes = [comp for comp in component_group if len(adjacency.get(comp, set())) > 2]
     if branch_nodes:
@@ -232,21 +243,42 @@ def analyze_circuit(
     for component in components:
         component.reset_operating_metrics()
 
+    def _find_root(parents: Dict[int, int], node: int) -> int:
+        parents.setdefault(node, node)
+        if parents[node] != node:
+            parents[node] = _find_root(parents, parents[node])
+        return parents[node]
+
+    def _union_nodes(parents: Dict[int, int], a: int, b: int) -> None:
+        root_a = _find_root(parents, a)
+        root_b = _find_root(parents, b)
+        if root_a != root_b:
+            parents[root_b] = root_a
+
+    def _find_terminal_root(parents: Dict[str, str], terminal: str) -> str:
+        parents.setdefault(terminal, terminal)
+        if parents[terminal] != terminal:
+            parents[terminal] = _find_terminal_root(parents, parents[terminal])
+        return parents[terminal]
+
+    def _union_terminals(parents: Dict[str, str], a: str, b: str) -> None:
+        root_a = _find_terminal_root(parents, a)
+        root_b = _find_terminal_root(parents, b)
+        if root_a != root_b:
+            parents[root_b] = root_a
+
     adjacency: Adjacency = {component: set() for component in components}
-    edges: List[tuple[CircuitWire, CircuitComponent, CircuitComponent]] = []
     endpoint_counts: Dict[CircuitComponent, int] = {component: 0 for component in components}
 
+    wire_indices: Dict[CircuitWire, int] = {wire: idx for idx, wire in enumerate(wires)}
+    wire_parents: Dict[int, int] = {idx: idx for idx in wire_indices.values()}
+
     for wire in wires:
-        attached_components = wire.attached_components()
-        if len(attached_components) == 2 and attached_components[0] is not attached_components[1]:
-            comp_a, comp_b = attached_components
-            adjacency.setdefault(comp_a, set()).add(comp_b)
-            adjacency.setdefault(comp_b, set()).add(comp_a)
-            edges.append((wire, comp_a, comp_b))
-        for attachment in wire.attachments.values():
-            if attachment:
-                comp, _ = attachment
-                endpoint_counts[comp] = endpoint_counts.get(comp, 0) + 1
+        wire_idx = wire_indices[wire]
+        for link_set in wire.links.values():
+            for linked_wire, _ in link_set:
+                if linked_wire in wire_indices:
+                    _union_nodes(wire_parents, wire_idx, wire_indices[linked_wire])
 
         attachments_count = sum(1 for attachment in wire.attachments.values() if attachment)
         linked_count = sum(len(link) for link in wire.links.values())
@@ -254,6 +286,61 @@ def analyze_circuit(
             analysis["issues"].append("Wire with no connections detected")
         elif attachments_count + linked_count == 1:
             analysis["issues"].append("Wire with a floating endpoint detected")
+
+        for attachment in wire.attachments.values():
+            if attachment:
+                comp, _ = attachment
+                endpoint_counts[comp] = endpoint_counts.get(comp, 0) + 1
+
+    wire_clusters: Dict[int, Set[CircuitWire]] = {}
+    wire_cluster_lookup: Dict[CircuitWire, int] = {}
+    for wire, idx in wire_indices.items():
+        root = _find_root(wire_parents, idx)
+        wire_clusters.setdefault(root, set()).add(wire)
+        wire_cluster_lookup[wire] = root
+
+    terminal_parents: Dict[str, str] = {}
+    terminal_component: Dict[str, CircuitComponent] = {}
+    cluster_components: Dict[int, Set[CircuitComponent]] = {}
+
+    for cluster_id, cluster_wires in wire_clusters.items():
+        terminals: List[str] = []
+        component_set: Set[CircuitComponent] = set()
+        for wire in cluster_wires:
+            for attachment in wire.attachments.values():
+                if not attachment:
+                    continue
+                comp, side = attachment
+                terminal_id = f"{comp.id}:{side}"
+                terminals.append(terminal_id)
+                terminal_component[terminal_id] = comp
+                component_set.add(comp)
+        cluster_components[cluster_id] = component_set
+        if len(terminals) >= 2:
+            base = terminals[0]
+            for terminal in terminals[1:]:
+                _union_terminals(terminal_parents, base, terminal)
+        elif len(terminals) == 1:
+            _find_terminal_root(terminal_parents, terminals[0])
+
+    node_members: Dict[str, Set[CircuitComponent]] = {}
+    component_nodes: Dict[CircuitComponent, List[str]] = {component: [] for component in components}
+
+    for terminal_id, component in terminal_component.items():
+        node_id = _find_terminal_root(terminal_parents, terminal_id)
+        node_members.setdefault(node_id, set()).add(component)
+        nodes = component_nodes.setdefault(component, [])
+        if node_id not in nodes:
+            nodes.append(node_id)
+
+    for node_id, comps in node_members.items():
+        comp_list = list(comps)
+        for i in range(len(comp_list)):
+            for j in range(i + 1, len(comp_list)):
+                comp_a = comp_list[i]
+                comp_b = comp_list[j]
+                adjacency.setdefault(comp_a, set()).add(comp_b)
+                adjacency.setdefault(comp_b, set()).add(comp_a)
 
     for component in components:
         connected = endpoint_counts.get(component, 0)
@@ -265,7 +352,6 @@ def analyze_circuit(
 
     visited: Set[CircuitComponent] = set()
     active_group: Optional[List[CircuitComponent]] = None
-    active_wires: Optional[List[CircuitWire]] = None
     group_batteries: List[CircuitComponent] = []
     group_loads: List[CircuitComponent] = []
 
@@ -303,17 +389,29 @@ def analyze_circuit(
         active_group = candidate_group
         group_batteries = batteries
         group_loads = loads
-        active_wires = [
-            wire
-            for wire, a, b in edges
-            if a in candidate_group and b in candidate_group
-        ]
         break
 
     component_metrics: ComponentMetrics = {}
+    active_wires: Optional[List[CircuitWire]] = None
 
     if active_group:
-        circuit_type = classify_circuit(active_group, adjacency, group_loads)
+        active_set = set(active_group)
+        active_cluster_ids: Set[int] = set()
+        for cluster_id, comps in cluster_components.items():
+            in_group = [comp for comp in comps if comp in active_set]
+            if len(in_group) >= 2:
+                active_cluster_ids.add(cluster_id)
+
+        if active_cluster_ids:
+            active_wires = [
+                wire
+                for wire in wires
+                if wire_cluster_lookup.get(wire) in active_cluster_ids
+            ]
+        else:
+            active_wires = []
+
+        circuit_type = classify_circuit(active_group, adjacency, group_loads, component_nodes)
         summary, component_metrics, metric_issues = compute_circuit_metrics(active_group, group_batteries, group_loads, circuit_type)
 
         analysis.update({
