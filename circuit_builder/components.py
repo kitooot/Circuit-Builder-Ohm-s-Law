@@ -626,7 +626,7 @@ class CircuitComponent:
         self._move_to(snapped_x, snapped_y)
 
     def _on_release(self, _event: tk.Event) -> None:
-        # Finish dragging and notify listeners of the move.
+        # Finish dragging.
         if not self.dragging:
             return
         self.dragging = False
