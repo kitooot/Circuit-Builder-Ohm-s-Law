@@ -458,16 +458,6 @@ class CircuitComponent:
             self._draw_bulb_visual(active)
         elif self.type in {"switch", "switch_spst", "switch_spdt"}:
             self._draw_switch_visual(active)
-        elif self.type == "led":
-            self._draw_led_visual(active)
-        elif self.type == "capacitor":
-            self._draw_capacitor_visual(active)
-        elif self.type == "diode":
-            self._draw_diode_visual(active)
-        elif self.type in {"ammeter", "voltmeter"}:
-            self._draw_meter_visual(active)
-        elif self.type == "ground":
-            self._draw_ground_visual(active)
         else:
             self._draw_wire_visual(active)
 
@@ -531,56 +521,6 @@ class CircuitComponent:
             self._vc_oval((96, 20, 104, 28), fill="#e2e8f0", outline=contact_color, width=2)
             self._vc_line([96, 28, 104, 34], fill=lead_color, width=4, capstyle=tk.ROUND)
             self._vc_text(86, 60, text="OFF", font=("Arial", 8, "bold"), fill="#b91c1c")
-
-    def _draw_led_visual(self, active: bool) -> None:
-        ratio = min(1.0, self.operating_current / 0.02) if active else 0.0
-        body_color = self._mix_color("#9f1239", "#dc2626", ratio)
-        glow_color = self._mix_color("#fecdd3", "#fda4af", ratio)
-        self._vc_oval((34, 18, 86, 70), fill=glow_color, outline=body_color, width=3)
-        self._vc_polygon([20, 40, 52, 24, 52, 56], fill=body_color, outline=body_color)
-        self._vc_line([86, 40, 104, 40], fill="#374151", width=4)
-        label = f"{self.operating_current * 1000:.1f} mA" if active else "LED"
-        self._vc_text(60, 82, text=label, font=("Arial", 9, "bold"), fill="#1f2937")
-
-    def _draw_capacitor_visual(self, active: bool) -> None:
-        # Depict a capacitor with color indicating active status.
-        plate_color = "#0ea5e9" if active else "#38bdf8"
-        self._vc_line([6, 40, 42, 40], fill="#475569", width=3)
-        self._vc_line([42, 20, 42, 60], fill=plate_color, width=4)
-        self._vc_line([70, 20, 70, 60], fill=plate_color, width=4)
-        self._vc_line([70, 40, 104, 40], fill="#475569", width=3)
-        self._vc_text(56, 68, text=f"{self.capacitance * 1e6:.0f} μF", font=("Arial", 9, "bold"), fill="#0f172a")
-
-    def _draw_diode_visual(self, active: bool) -> None:
-        body_color = "#7f1d1d" if active else "#9ca3af"
-        self._vc_line([6, 40, 36, 40], fill="#475569", width=3)
-        self._vc_polygon([36, 28, 64, 40, 36, 52], fill=body_color, outline=body_color)
-        self._vc_line([64, 24, 64, 56], fill=body_color, width=3)
-        self._vc_line([64, 40, 104, 40], fill="#475569", width=3)
-        self._vc_text(55, 68, text=f"{self.forward_voltage:.1f} V", font=("Arial", 9, "bold"), fill="#0f172a")
-
-    def _draw_meter_visual(self, active: bool) -> None:
-        # Render an ammeter or voltmeter with a responsive needle.
-        ratio = self._intensity_ratio() if active else 0.0
-        shell_color = self._mix_color("#e5e7eb", "#22c55e", ratio)
-        self._vc_rectangle((24, 18, 96, 72), fill=shell_color, outline="#111827", width=2)
-        label = "A" if self.type == "ammeter" else "V"
-        needle_angle = min(60, max(-60, (self.operating_current if label == "A" else self.operating_voltage) * 10))
-        center_x, center_y = 60, 50
-        length = 20
-        angle_rad = math.radians(needle_angle)
-        end_x = center_x + length * math.cos(angle_rad)
-        end_y = center_y - length * math.sin(angle_rad)
-        self._vc_arc((32, 32, 88, 88), start=210, extent=120, style=tk.ARC, outline="#1f2937", width=2)
-        self._vc_line([center_x, center_y, end_x, end_y], fill="#1f2937", width=3)
-        self._vc_text(center_x, 30, text=label, font=("Arial", 12, "bold"), fill="#1f2937")
-
-    def _draw_ground_visual(self, active: bool) -> None:
-        color = "#16a34a" if active else "#475569"
-        self._vc_line([56, 20, 56, 54], fill=color, width=4)
-        self._vc_line([44, 54, 68, 54], fill=color, width=4)
-        self._vc_line([48, 62, 64, 62], fill=color, width=4)
-        self._vc_line([52, 70, 60, 70], fill=color, width=4)
 
     def _draw_wire_visual(self, active: bool) -> None:
         # Draw a straight wire segment with activity-based color.

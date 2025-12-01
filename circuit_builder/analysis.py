@@ -12,7 +12,6 @@ Adjacency = Dict[CircuitComponent, Set[CircuitComponent]]
 PASSIVE_LOAD_TYPES: Set[str] = {
     "resistor",
     "bulb",
-    "led",
     "diode",
     "ammeter",
     "voltmeter",

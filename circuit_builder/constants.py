@@ -14,12 +14,6 @@ COMPONENT_ICONS: Dict[str, str] = {
     "switch": "⏚",
     "switch_spst": "⏚",
     "switch_spdt": "⏚",
-    "led": "🔺",
-    "capacitor": "∥",
-    "diode": "▶",
-    "ammeter": "Ⓐ",
-    "voltmeter": "Ⓥ",
-    "ground": "⏚",
 }
 
 COMPONENT_PROPS: Dict[str, Dict[str, Any]] = {
@@ -89,63 +83,6 @@ COMPONENT_PROPS: Dict[str, Dict[str, Any]] = {
         "badge_fg": "#ede9fe",
         "active_body": "#ddd6fe",
     },
-    "led": {
-        "label": "LED",
-        "resistance": 330,
-        "color": "#fee2e2",
-        "bg_gradient": "#f87171",
-        "badge_bg": "#b91c1c",
-        "badge_fg": "#fef2f2",
-        "active_body": "#fecaca",
-        "forward_voltage": 2.0,
-    },
-    "capacitor": {
-        "label": "Capacitor",
-        "resistance": 0,
-        "capacitance": 100e-6,
-        "color": "#cffafe",
-        "bg_gradient": "#22d3ee",
-        "badge_bg": "#0e7490",
-        "badge_fg": "#e0f2fe",
-        "active_body": "#bae6fd",
-    },
-    "diode": {
-        "label": "Diode",
-        "resistance": 10,
-        "color": "#fef9c3",
-        "bg_gradient": "#facc15",
-        "badge_bg": "#b45309",
-        "badge_fg": "#fff7ed",
-        "active_body": "#fde68a",
-        "forward_voltage": 0.7,
-    },
-    "ammeter": {
-        "label": "Ammeter",
-        "resistance": 0.1,
-        "color": "#dcfce7",
-        "bg_gradient": "#34d399",
-        "badge_bg": "#065f46",
-        "badge_fg": "#ecfdf5",
-        "active_body": "#bbf7d0",
-    },
-    "voltmeter": {
-        "label": "Voltmeter",
-        "resistance": 1000,
-        "color": "#ede9fe",
-        "bg_gradient": "#a855f7",
-        "badge_bg": "#5b21b6",
-        "badge_fg": "#faf5ff",
-        "active_body": "#ddd6fe",
-    },
-    "ground": {
-        "label": "Ground",
-        "resistance": 0,
-        "color": "#f1f5f9",
-        "bg_gradient": "#94a3b8",
-        "badge_bg": "#1f2937",
-        "badge_fg": "#f8fafc",
-        "active_body": "#e2e8f0",
-    },
 }
 
 COMPONENT_PREFIX: Dict[str, str] = {
@@ -156,12 +93,6 @@ COMPONENT_PREFIX: Dict[str, str] = {
     "switch": "S",
     "switch_spst": "S",
     "switch_spdt": "S",
-    "led": "D",
-    "capacitor": "C",
-    "diode": "D",
-    "ammeter": "A",
-    "voltmeter": "V",
-    "ground": "G",
 }
 
 BATTERY_VOLTAGE = 9.0

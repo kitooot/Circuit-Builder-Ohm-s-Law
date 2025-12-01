@@ -1106,7 +1106,7 @@ class OhmsLawApp:
                 self._reset_values()
             else:
                 has_battery = any(comp.type == "battery" and comp.get_voltage() > 0 for comp in self.components)
-                load_types = {"resistor", "bulb", "led", "diode"}
+                load_types = {"resistor"}
                 has_load = any(comp.type in load_types and comp.get_resistance() > 0 for comp in self.components)
                 switch_components = [comp for comp in self.components if hasattr(comp, "is_switch") and comp.is_switch()]
                 open_switches = [comp for comp in switch_components if not comp.is_switch_closed()]
