@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import customtkinter as ctk
 import tkinter as tk
 from typing import Any, Dict, List, Optional, Set, Tuple
 from .analysis import analyze_circuit
@@ -16,12 +17,12 @@ from .wires import CircuitWire
 
 
 class OhmsLawApp:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: ctk.CTk):
         # Set up the main application window and initialize state containers.
         self.root = root
         self.root.title("Ohm's Law & Circuit Builder")
         self.root.geometry("1200x700")
-        self.root.configure(bg="#f0f0f0")
+        self.root.configure(fg_color="#f0f0f0")
         self.root.minsize(960, 600)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
@@ -42,8 +43,8 @@ class OhmsLawApp:
         self.circuit_power_var = tk.StringVar(value="Power: — | Resistance: —")
         self.circuit_counts_var = tk.StringVar(value="Components: 0 | Wires: 0")
         self.circuit_path_var = tk.StringVar(value="Active path: —")
-        self.status_label: Optional[tk.Label] = None
-        self.functions_display: Optional[tk.Label] = None
+        self.status_label: Optional[ctk.CTkLabel] = None
+        self.functions_display: Optional[ctk.CTkLabel] = None
         self.latest_analysis: Dict[str, Any] = {}
         self._auto_snap_guard = False
 
@@ -71,28 +72,26 @@ class OhmsLawApp:
 
     def _build_header(self) -> None:
         # Create the top banner introducing the app and its purpose.
-        header = tk.Frame(self.root, bg="#ffffff", relief=tk.RAISED, bd=1)
+        header = ctk.CTkFrame(self.root, fg_color="#ffffff", corner_radius=0, border_width=1, border_color="#e2e8f0")
         header.pack(side=tk.TOP, fill=tk.X, padx=0, pady=0)
 
-        tk.Label(
+        ctk.CTkLabel(
             header,
             text="⚡ Interactive Circuit Builder",
             font=("Arial", 14, "bold"),
-            bg="#ffffff",
-            fg="#1f2937",
+            text_color="#1f2937",
         ).pack(pady=(12, 2))
 
-        tk.Label(
+        ctk.CTkLabel(
             header,
             text="Drag components, connect with wires, and watch Ohm's Law calculations update in real-time",
             font=("Arial", 10),
-            bg="#ffffff",
-            fg="#6b7280",
+            text_color="#6b7280",
         ).pack(pady=(0, 12))
 
-    def _build_main_frame(self) -> tk.Frame:
+    def _build_main_frame(self) -> ctk.CTkFrame:
         # Assemble the root frame that houses the side panels and canvas.
-        main_frame = tk.Frame(self.root, bg="#f0f0f0")
+        main_frame = ctk.CTkFrame(self.root, fg_color="#f0f0f0", corner_radius=0)
         main_frame.pack(fill=tk.BOTH, expand=True)
         main_frame.grid_rowconfigure(0, weight=1)
         main_frame.grid_columnconfigure(0, weight=0, minsize=240)
@@ -100,16 +99,16 @@ class OhmsLawApp:
         main_frame.grid_columnconfigure(2, weight=1, minsize=280)
         return main_frame
 
-    def _build_left_panel(self, main_frame: tk.Frame) -> tk.Frame:
+    def _build_left_panel(self, main_frame: ctk.CTkFrame) -> ctk.CTkFrame:
         # Create the left sidebar used for component palette and help.
-        left_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
+        left_panel = ctk.CTkFrame(main_frame, fg_color="#ffffff", corner_radius=10, border_width=1, border_color="#e2e8f0")
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(5, 2), pady=5)
         left_panel.grid_propagate(True)
         return left_panel
 
-    def _populate_component_palette(self, left_panel: tk.Frame) -> None:
+    def _populate_component_palette(self, left_panel: ctk.CTkFrame) -> None:
         # Fill the palette with buttons representing placeable components.
-        tk.Label(left_panel, text="Component Palette", font=("Arial", 12, "bold"), bg="#ffffff").pack(pady=(10, 5))
+        ctk.CTkLabel(left_panel, text="Component Palette", font=("Arial", 12, "bold"), text_color="#0f172a").pack(pady=(10, 5))
 
         palette = [
             ("battery", "Battery"),
@@ -120,33 +119,31 @@ class OhmsLawApp:
         ]
 
         for comp_type, label in palette:
-            tile = tk.Frame(
+            tile = ctk.CTkFrame(
                 left_panel,
-                bg="#f8fafc",
-                bd=1,
-                relief=tk.RIDGE,
-                padx=6,
-                pady=6,
-                highlightthickness=1,
-                highlightbackground="#cbd5f5",
+                fg_color="#f8fafc",
+                corner_radius=10,
+                border_width=1,
+                border_color="#cbd5f5",
                 cursor="hand2",
             )
             tile.pack(pady=5, padx=10, fill=tk.X)
 
-            icon_label = tk.Label(
+            icon_label = ctk.CTkLabel(
                 tile,
                 text=COMPONENT_ICONS.get(comp_type, "❓"),
                 font=("Arial", 20),
-                bg="#f8fafc",
+                text_color="#0f172a",
+                fg_color="#f8fafc",
             )
             icon_label.pack()
 
-            text_label = tk.Label(
+            text_label = ctk.CTkLabel(
                 tile,
                 text=label,
                 font=("Arial", 9),
-                bg="#f8fafc",
-                fg="#334155",
+                text_color="#334155",
+                fg_color="#f8fafc",
             )
             text_label.pack()
             for widget in (icon_label, text_label):
@@ -171,31 +168,31 @@ class OhmsLawApp:
             text_label.bind("<Leave>", lambda _event, t=tile: self._set_palette_tile_state(t, False))
 
     def _build_help_section(
-        self, left_panel: tk.Frame
-    ) -> Tuple[tk.Frame, tk.Label, tk.Label, List[tk.Label]]:
+        self, left_panel: ctk.CTkFrame
+    ) -> Tuple[ctk.CTkFrame, ctk.CTkLabel, ctk.CTkLabel, List[ctk.CTkLabel]]:
         # Construct the collapsible quick tips section in the palette.
-        help_frame = tk.Frame(left_panel, bg="#f0f9ff", relief=tk.RIDGE, bd=1, cursor="hand2")
+        help_frame = ctk.CTkFrame(left_panel, fg_color="#f0f9ff", corner_radius=10, border_width=1, border_color="#bfdbfe", cursor="hand2")
         help_frame.pack(side=tk.BOTTOM, pady=10, padx=8, fill=tk.X)
         self.help_frame = help_frame
 
-        help_title = tk.Label(
+        help_title = ctk.CTkLabel(
             help_frame,
             text="💡 Quick Tips",
             font=("Arial", 9, "bold"),
-            bg="#f0f9ff",
-            fg="#1e40af",
+            text_color="#1e40af",
+            fg_color="#f0f9ff",
             cursor="hand2",
         )
         help_title.pack(pady=(6, 4))
 
-        tip_labels: List[tk.Label] = []
+        tip_labels: List[ctk.CTkLabel] = []
         for tip_text in self._feature_lines():
-            label = tk.Label(
+            label = ctk.CTkLabel(
                 help_frame,
                 text=f"• {tip_text}",
                 font=("Arial", 8),
-                bg="#f0f9ff",
-                fg="#475569",
+                text_color="#475569",
+                fg_color="#f0f9ff",
                 anchor="w",
                 justify=tk.LEFT,
                 wraplength=210,
@@ -204,12 +201,12 @@ class OhmsLawApp:
             label.pack(anchor="w", padx=8, pady=1)
             tip_labels.append(label)
 
-        help_hint = tk.Label(
+        help_hint = ctk.CTkLabel(
             help_frame,
             text="Double-click for full guide",
             font=("Arial", 7, "italic"),
-            bg="#f0f9ff",
-            fg="#1e40af",
+            text_color="#1e40af",
+            fg_color="#f0f9ff",
             cursor="hand2",
         )
         help_hint.pack(pady=4)
@@ -218,10 +215,10 @@ class OhmsLawApp:
 
     def _bind_help_events(
         self,
-        help_frame: tk.Frame,
-        help_title: tk.Label,
-        help_hint: tk.Label,
-        tip_labels: List[tk.Label],
+        help_frame: ctk.CTkFrame,
+        help_title: ctk.CTkLabel,
+        help_hint: ctk.CTkLabel,
+        tip_labels: List[ctk.CTkLabel],
     ) -> None:
         # Attach double-click bindings to open the extended tips dialog.
         help_frame.bind("<Double-1>", self._show_tips_dialog)
@@ -230,45 +227,44 @@ class OhmsLawApp:
         for label in tip_labels:
             label.bind("<Double-1>", self._show_tips_dialog)
 
-    def _build_canvas_panel(self, main_frame: tk.Frame) -> None:
+    def _build_canvas_panel(self, main_frame: ctk.CTkFrame) -> None:
         # Set up the central drawing canvas and status controls.
-        canvas_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        canvas_frame = ctk.CTkFrame(main_frame, fg_color="#f0f0f0", corner_radius=0)
         canvas_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         canvas_frame.grid_rowconfigure(1, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
 
-        canvas_header = tk.Frame(canvas_frame, bg="#f0f0f0")
+        canvas_header = ctk.CTkFrame(canvas_frame, fg_color="#f0f0f0", corner_radius=0)
         canvas_header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        tk.Label(
+        ctk.CTkLabel(
             canvas_header,
             text="Circuit Canvas",
             font=("Arial", 12, "bold"),
-            bg="#f0f0f0",
-            fg="#1f2937",
+            text_color="#1f2937",
         ).pack(side=tk.LEFT)
 
-        controls_frame = tk.Frame(canvas_header, bg="#f0f0f0")
+        controls_frame = ctk.CTkFrame(canvas_header, fg_color="#f0f0f0", corner_radius=0)
         controls_frame.pack(side=tk.RIGHT)
 
-        reset_button = tk.Button(
+        reset_button = ctk.CTkButton(
             controls_frame,
             text="♻ Reset Circuit",
             font=("Arial", 10, "bold"),
-            bg="#dc2626",
-            fg="white",
-            width=12,
+            fg_color="#dc2626",
+            hover_color="#b91c1c",
+            text_color="#ffffff",
+            width=120,
+            corner_radius=8,
             command=self._reset_circuit,
-            relief=tk.RAISED,
-            bd=2,
         )
         reset_button.pack(side=tk.RIGHT, padx=(5, 0))
 
-        self.status_label = tk.Label(
+        self.status_label = ctk.CTkLabel(
             controls_frame,
             textvariable=self.status,
             font=("Arial", 10, "bold"),
-            bg="#f0f0f0",
-            fg="#9ca3af",
+            text_color="#9ca3af",
+            fg_color="#f0f0f0",
         )
         self.status_label.pack(side=tk.RIGHT, padx=(0, 10))
 
@@ -285,17 +281,17 @@ class OhmsLawApp:
         self.canvas_height = CANVAS_HEIGHT
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
-    def _build_right_panel(self, main_frame: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
+    def _build_right_panel(self, main_frame: ctk.CTkFrame) -> Tuple[ctk.CTkFrame, ctk.CTkLabel]:
         # Create the right sidebar with calculators and analysis readouts.
-        right_panel = tk.Frame(main_frame, bg="#ffffff", relief=tk.SUNKEN, bd=1)
+        right_panel = ctk.CTkFrame(main_frame, fg_color="#ffffff", corner_radius=10, border_width=1, border_color="#e2e8f0")
         right_panel.grid(row=0, column=2, sticky="nsew", padx=(2, 5), pady=5)
         right_panel.grid_propagate(True)
 
-        tk.Label(
+        ctk.CTkLabel(
             right_panel,
             text="Ohm's Law Calculator",
             font=("Arial", 12, "bold"),
-            bg="#ffffff",
+            text_color="#0f172a",
         ).pack(pady=(10, 5))
 
         self._build_formula_section(right_panel)
@@ -305,154 +301,151 @@ class OhmsLawApp:
         analysis_frame, analysis_title = self._build_analysis_panel(right_panel)
         return analysis_frame, analysis_title
 
-    def _build_formula_section(self, right_panel: tk.Frame) -> None:
+    def _build_formula_section(self, right_panel: ctk.CTkFrame) -> None:
         # Show the Ohm's law identity as a quick reference.
-        formula_frame = tk.Frame(right_panel, bg="white", relief=tk.RAISED, bd=1)
+        formula_frame = ctk.CTkFrame(right_panel, fg_color="white", corner_radius=10, border_width=1, border_color="#e2e8f0")
         formula_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(
+        ctk.CTkLabel(
             formula_frame,
             text="V = I × R",
             font=("Arial", 14, "bold"),
-            bg="white",
-            fg="#333333",
+            text_color="#333333",
         ).pack(pady=10)
 
-    def _build_calculator_entries(self, right_panel: tk.Frame) -> None:
+    def _build_calculator_entries(self, right_panel: ctk.CTkFrame) -> None:
         # Prepare read-only entry fields for displaying computed values.
-        v_frame = tk.Frame(right_panel, bg="#ffffff")
+        v_frame = ctk.CTkFrame(right_panel, fg_color="#ffffff", corner_radius=0)
         v_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(v_frame, text="Voltage (V)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
-        self.v_entry = tk.Entry(v_frame, font=("Arial", 12), justify="center", state="readonly", readonlybackground="white")
+        ctk.CTkLabel(v_frame, text="Voltage (V)", font=("Arial", 10), text_color="#666666").pack(anchor="w", padx=5)
+        self.v_entry = ctk.CTkEntry(v_frame, font=("Arial", 12), justify="center", state="disabled", fg_color="#ffffff", text_color="#0f172a", border_color="#e2e8f0")
         self.v_entry.pack(fill=tk.X, padx=5, pady=2)
 
-        i_frame = tk.Frame(right_panel, bg="#ffffff")
+        i_frame = ctk.CTkFrame(right_panel, fg_color="#ffffff", corner_radius=0)
         i_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(i_frame, text="Current (I)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
-        self.i_entry = tk.Entry(i_frame, font=("Arial", 12), justify="center", state="readonly", readonlybackground="white")
+        ctk.CTkLabel(i_frame, text="Current (I)", font=("Arial", 10), text_color="#666666").pack(anchor="w", padx=5)
+        self.i_entry = ctk.CTkEntry(i_frame, font=("Arial", 12), justify="center", state="disabled", fg_color="#ffffff", text_color="#0f172a", border_color="#e2e8f0")
         self.i_entry.pack(fill=tk.X, padx=5, pady=2)
 
-        r_frame = tk.Frame(right_panel, bg="#ffffff")
+        r_frame = ctk.CTkFrame(right_panel, fg_color="#ffffff", corner_radius=0)
         r_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(r_frame, text="Resistance (R)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
-        self.r_entry = tk.Entry(r_frame, font=("Arial", 12), justify="center", state="readonly", readonlybackground="white")
+        ctk.CTkLabel(r_frame, text="Resistance (R)", font=("Arial", 10), text_color="#666666").pack(anchor="w", padx=5)
+        self.r_entry = ctk.CTkEntry(r_frame, font=("Arial", 12), justify="center", state="disabled", fg_color="#ffffff", text_color="#0f172a", border_color="#e2e8f0")
         self.r_entry.pack(fill=tk.X, padx=5, pady=2)
 
-        power_frame = tk.Frame(right_panel, bg="#ffffff")
+        power_frame = ctk.CTkFrame(right_panel, fg_color="#ffffff", corner_radius=0)
         power_frame.pack(padx=10, pady=5, fill=tk.X)
-        tk.Label(power_frame, text="Power (P)", font=("Arial", 10), bg="#ffffff", fg="#666666").pack(anchor="w", padx=5)
-        self.p_entry = tk.Entry(power_frame, font=("Arial", 12), justify="center", state="readonly", readonlybackground="white")
+        ctk.CTkLabel(power_frame, text="Power (P)", font=("Arial", 10), text_color="#666666").pack(anchor="w", padx=5)
+        self.p_entry = ctk.CTkEntry(power_frame, font=("Arial", 12), justify="center", state="disabled", fg_color="#ffffff", text_color="#0f172a", border_color="#e2e8f0")
         self.p_entry.pack(fill=tk.X, padx=5, pady=2)
 
-    def _build_info_section(self, right_panel: tk.Frame) -> None:
+    def _build_info_section(self, right_panel: ctk.CTkFrame) -> None:
         # Add instructional copy guiding users on building circuits.
-        info_frame = tk.Frame(right_panel, bg="#ecfdf5", relief=tk.RAISED, bd=1)
+        info_frame = ctk.CTkFrame(right_panel, fg_color="#ecfdf5", corner_radius=10, border_width=1, border_color="#bbf7d0")
         info_frame.pack(padx=10, pady=10, fill=tk.X)
-        tk.Label(
+        ctk.CTkLabel(
             info_frame,
             text="ℹ️ Build Your Circuit",
             font=("Arial", 9, "bold"),
-            bg="#ecfdf5",
-            fg="#047857",
+            text_color="#047857",
+            fg_color="#ecfdf5",
         ).pack(padx=5, pady=(5, 2))
-        tk.Label(
+        ctk.CTkLabel(
             info_frame,
             text="Add battery + load (resistor/bulb), then wire all terminals to form a complete loop. Values calculate automatically!",
             font=("Arial", 8),
-            bg="#ecfdf5",
-            fg="#065f46",
+            text_color="#065f46",
+            fg_color="#ecfdf5",
             wraplength=220,
             justify=tk.LEFT,
         ).pack(padx=8, pady=(0, 5))
 
-    def _build_analysis_panel(self, right_panel: tk.Frame) -> Tuple[tk.Frame, tk.Label]:
+    def _build_analysis_panel(self, right_panel: ctk.CTkFrame) -> Tuple[ctk.CTkFrame, ctk.CTkLabel]:
         # Create the collapsible analysis summary section.
-        analysis_frame = tk.Frame(right_panel, bg="#f8fafc", relief=tk.RIDGE, bd=1, cursor="hand2")
+        analysis_frame = ctk.CTkFrame(right_panel, fg_color="#f8fafc", corner_radius=10, border_width=1, border_color="#e2e8f0", cursor="hand2")
         analysis_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
         self.analysis_frame = analysis_frame
 
-        analysis_title = tk.Label(
+        analysis_title = ctk.CTkLabel(
             analysis_frame,
             text="📊 Circuit Insight",
             font=("Arial", 10, "bold"),
-            bg="#f8fafc",
-            fg="#1d4ed8",
+            text_color="#1d4ed8",
+            fg_color="#f8fafc",
             cursor="hand2",
         )
         analysis_title.pack(anchor="w", padx=8, pady=(6, 2))
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_type_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=1)
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_status_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=1)
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_metrics_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=(4, 1))
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_power_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=1)
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_counts_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=(4, 1))
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             textvariable=self.circuit_path_var,
             font=("Arial", 9),
-            bg="#f8fafc",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=1)
 
-        tk.Label(
+        ctk.CTkLabel(
             analysis_frame,
             text="Issues & Tips",
             font=("Arial", 9, "bold"),
-            bg="#f8fafc",
-            fg="#475569",
+            text_color="#475569",
+            fg_color="#f8fafc",
         ).pack(anchor="w", padx=12, pady=(8, 2))
 
-        self.circuit_issue_label = tk.Label(
+        self.circuit_issue_label = ctk.CTkLabel(
             analysis_frame,
             text="• No issues detected",
             font=("Arial", 8),
-            bg="#eef2ff",
-            fg="#1f2937",
+            text_color="#1f2937",
+            fg_color="#eef2ff",
             justify=tk.LEFT,
             wraplength=210,
-            relief=tk.FLAT,
-            padx=8,
-            pady=4,
+            corner_radius=6,
         )
         self.circuit_issue_label.pack(fill=tk.X, padx=10, pady=(0, 8))
 
         return analysis_frame, analysis_title
 
-    def _bind_analysis_events(self, analysis_frame: tk.Frame, analysis_title: tk.Label) -> None:
+    def _bind_analysis_events(self, analysis_frame: ctk.CTkFrame, analysis_title: ctk.CTkLabel) -> None:
         # Allow double-clicking the analysis panel to open detailed insight.
         analysis_frame.bind("<Double-1>", self._show_insight_info)
         analysis_title.bind("<Double-1>", self._show_insight_info)
@@ -483,7 +476,7 @@ class OhmsLawApp:
         self._update_analysis_panel(initial_analysis)
         self.latest_analysis = dict(initial_analysis)
 
-    def _set_palette_tile_state(self, tile: tk.Frame, hover: bool) -> None:
+    def _set_palette_tile_state(self, tile: ctk.CTkFrame, hover: bool) -> None:
         # Adjust palette tile styling in response to hover state changes.
         base_bg = "#f8fafc"
         hover_bg = "#e0f2fe"
@@ -491,24 +484,28 @@ class OhmsLawApp:
         hover_border = "#3b82f6"
         bg = hover_bg if hover else base_bg
         border = hover_border if hover else base_border
-        tile.configure(bg=bg, highlightbackground=border)
+        tile.configure(fg_color=bg, border_color=border)
         for child in tile.winfo_children():
             try:
-                child.configure(bg=bg)
+                child.configure(fg_color=bg)
             except tk.TclError:
                 continue
 
-    def _flash_panel(self, panel: tk.Frame, highlight_bg: str = "#dbeafe") -> None:
+    def _flash_panel(self, panel: ctk.CTkFrame, highlight_bg: str = "#dbeafe") -> None:
         # Temporarily flash a panel background to draw user attention.
         originals: Dict[tk.Widget, str] = {}
 
         def _collect(widget: tk.Widget) -> None:
             # Capture and temporarily replace a widget's background color.
             try:
-                originals[widget] = widget.cget("bg")
-                widget.configure(bg=highlight_bg)
+                originals[widget] = widget.cget("fg_color")
+                widget.configure(fg_color=highlight_bg)
             except tk.TclError:
-                pass
+                try:
+                    originals[widget] = widget.cget("bg")
+                    widget.configure(bg=highlight_bg)
+                except tk.TclError:
+                    pass
 
         _collect(panel)
         for child in panel.winfo_children():
@@ -518,17 +515,20 @@ class OhmsLawApp:
             # Restore each widget's original background color.
             for widget, color in originals.items():
                 try:
-                    widget.configure(bg=color)
+                    widget.configure(fg_color=color)
                 except tk.TclError:
-                    continue
+                    try:
+                        widget.configure(bg=color)
+                    except tk.TclError:
+                        continue
 
         panel.after(220, _restore)
 
     def _open_modal(self, title: str, lines: List[str], accent: str = "#2563eb") -> None:
         # Present a modal dialog with a list of informational bullet points.
-        modal = tk.Toplevel(self.root)
+        modal = ctk.CTkToplevel(self.root)
         modal.title(title)
-        modal.configure(bg="#0f172a")
+        modal.configure(fg_color="#0f172a")
         modal.transient(self.root)
         modal.grab_set()
         modal.resizable(False, False)
@@ -536,49 +536,46 @@ class OhmsLawApp:
         frame_width, frame_height = 520, 420
         self._center_window(modal, frame_width, frame_height)
 
-        header = tk.Frame(modal, bg=accent)
+        header = ctk.CTkFrame(modal, fg_color=accent, corner_radius=0)
         header.pack(fill=tk.X)
-        tk.Label(
+        ctk.CTkLabel(
             header,
             text=title,
             font=("Segoe UI", 14, "bold"),
-            fg="#f8fafc",
-            bg=accent,
+            text_color="#f8fafc",
+            fg_color=accent,
             pady=8,
         ).pack(padx=20)
 
-        body = tk.Frame(modal, bg="#f8fafc")
+        body = ctk.CTkFrame(modal, fg_color="#f8fafc", corner_radius=0)
         body.pack(fill=tk.BOTH, expand=True, padx=18, pady=18)
 
-        content = tk.Frame(body, bg="#f8fafc")
+        content = ctk.CTkFrame(body, fg_color="#f8fafc", corner_radius=0)
         content.pack(fill=tk.BOTH, expand=True)
 
         for line in lines:
-            tk.Label(
+            ctk.CTkLabel(
                 content,
                 text=f"• {line}",
                 font=("Segoe UI", 10),
-                fg="#1f2937",
-                bg="#f8fafc",
+                text_color="#1f2937",
+                fg_color="#f8fafc",
                 justify=tk.LEFT,
                 anchor="w",
                 wraplength=460,
             ).pack(anchor="w", pady=2)
 
-        footer = tk.Frame(body, bg="#f8fafc")
+        footer = ctk.CTkFrame(body, fg_color="#f8fafc", corner_radius=0)
         footer.pack(fill=tk.X, pady=(12, 0))
 
-        tk.Button(
+        ctk.CTkButton(
             footer,
             text="Close",
             font=("Segoe UI", 10, "bold"),
-            bg=accent,
-            fg="#f8fafc",
-            activebackground="#1d4ed8",
-            activeforeground="#f8fafc",
-            relief=tk.FLAT,
-            padx=12,
-            pady=4,
+            fg_color=accent,
+            hover_color="#1d4ed8",
+            text_color="#f8fafc",
+            corner_radius=8,
             command=modal.destroy,
         ).pack(side=tk.RIGHT)
 
@@ -1044,7 +1041,7 @@ class OhmsLawApp:
             issues_text = "\n".join(display_lines)
         else:
             issues_text = "• No issues detected"
-        self.circuit_issue_label.config(text=issues_text)
+        self.circuit_issue_label.configure(text=issues_text)
 
     def _calculate_circuit(self) -> None:
         # Perform a fresh analysis and update UI elements accordingly.
@@ -1068,16 +1065,8 @@ class OhmsLawApp:
                     float(metrics.get("power", 0.0)),
                 )
 
-            self.v_entry.config(state="normal")
-            self.i_entry.config(state="normal")
-            self.r_entry.config(state="normal")
-            self.p_entry.config(state="normal")
-
-            self.v_entry.delete(0, tk.END)
-            self.v_entry.insert(0, f"{float(analysis.get('total_voltage', 0.0)):.3f} V")
-
-            self.i_entry.delete(0, tk.END)
-            self.i_entry.insert(0, f"{float(analysis.get('total_current', 0.0)):.4f} A")
+            self._set_readonly_entry(self.v_entry, f"{float(analysis.get('total_voltage', 0.0)):.3f} V")
+            self._set_readonly_entry(self.i_entry, f"{float(analysis.get('total_current', 0.0)):.4f} A")
 
             total_resistance = float(analysis.get("total_resistance", 0.0))
             if total_resistance > 0:
@@ -1086,21 +1075,13 @@ class OhmsLawApp:
                 resistance_display = "0.00 Ω"
             else:
                 resistance_display = "∞"
-            self.r_entry.delete(0, tk.END)
-            self.r_entry.insert(0, resistance_display)
-
-            self.p_entry.delete(0, tk.END)
-            self.p_entry.insert(0, f"{float(analysis.get('total_power', 0.0)):.3f} W")
-
-            self.v_entry.config(state="readonly")
-            self.i_entry.config(state="readonly")
-            self.r_entry.config(state="readonly")
-            self.p_entry.config(state="readonly")
+            self._set_readonly_entry(self.r_entry, resistance_display)
+            self._set_readonly_entry(self.p_entry, f"{float(analysis.get('total_power', 0.0)):.3f} W")
 
             status_color = "#facc15" if analysis.get("status") == "Alert" else "#10b981"
             self.status.set(str(analysis.get("status_detail", "✓ Circuit Complete & Powered")))
             if self.status_label is not None:
-                self.status_label.config(fg=status_color)
+                self.status_label.configure(text_color=status_color)
         else:
             if not self.components:
                 self._reset_values()
@@ -1150,31 +1131,14 @@ class OhmsLawApp:
 
     def _reset_values(self, status_text: str = "⚫ Open Circuit", status_color: str = "#9ca3af") -> None:
         # Clear metric displays and update the status label to the provided state.
-        self.v_entry.config(state="normal")
-        self.i_entry.config(state="normal")
-        self.r_entry.config(state="normal")
-        self.p_entry.config(state="normal")
-
-        self.v_entry.delete(0, tk.END)
-        self.v_entry.insert(0, "—")
-
-        self.i_entry.delete(0, tk.END)
-        self.i_entry.insert(0, "—")
-
-        self.r_entry.delete(0, tk.END)
-        self.r_entry.insert(0, "—")
-
-        self.p_entry.delete(0, tk.END)
-        self.p_entry.insert(0, "—")
-
-        self.v_entry.config(state="readonly")
-        self.i_entry.config(state="readonly")
-        self.r_entry.config(state="readonly")
-        self.p_entry.config(state="readonly")
+        self._set_readonly_entry(self.v_entry, "—")
+        self._set_readonly_entry(self.i_entry, "—")
+        self._set_readonly_entry(self.r_entry, "—")
+        self._set_readonly_entry(self.p_entry, "—")
 
         self.status.set(status_text)
         if self.status_label is not None:
-            self.status_label.config(fg=status_color)
+            self.status_label.configure(text_color=status_color)
 
     def _reset_circuit(self) -> None:
         # Remove all components and wires, then redraw a clean canvas.
@@ -1206,6 +1170,13 @@ class OhmsLawApp:
             "path_description": "—",
             "issues": [],
         })
+
+    def _set_readonly_entry(self, entry: ctk.CTkEntry, value: str) -> None:
+        # Update a disabled entry by temporarily enabling it.
+        entry.configure(state="normal")
+        entry.delete(0, tk.END)
+        entry.insert(0, value)
+        entry.configure(state="disabled")
 
 
 __all__ = ["OhmsLawApp"]

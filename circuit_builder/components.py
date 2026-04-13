@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import time
+import customtkinter as ctk
 import tkinter as tk
 from tkinter import simpledialog
 from typing import Callable, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
@@ -81,23 +82,24 @@ class CircuitComponent:
         self.dragging = False
         self.window_id: Optional[int] = None
 
-        self.frame = tk.Frame(
+        self.frame = ctk.CTkFrame(
             self.canvas,
-            bg=self.host_bg,
-            bd=0,
-            highlightthickness=0,
+            fg_color=self.host_bg,
+            corner_radius=10,
+            border_width=0,
         )
         self.frame.configure(width=self.base_width, height=self.base_height)
 
-        self.toolbar_frame = tk.Frame(self.frame, bg=self.host_bg)
+        self.toolbar_frame = ctk.CTkFrame(self.frame, fg_color=self.host_bg, corner_radius=0)
         self.toolbar_frame.pack(fill=tk.X, padx=8, pady=(8, 0))
 
-        self.code_badge = tk.Label(
+        self.code_badge = ctk.CTkLabel(
             self.toolbar_frame,
             text=self.code_label,
             font=("Arial", 9, "bold"),
-            bg=self.badge_bg,
-            fg=self.badge_fg,
+            text_color=self.badge_fg,
+            fg_color=self.badge_bg,
+            corner_radius=6,
             padx=6,
             pady=2,
         )
@@ -105,27 +107,27 @@ class CircuitComponent:
 
         icon_text = COMPONENT_ICONS.get(comp_type, "")
         name_text = f"{icon_text} {self.display_label}".strip()
-        self.name_label = tk.Label(
+        self.name_label = ctk.CTkLabel(
             self.toolbar_frame,
             text=name_text,
             font=("Arial", 10, "bold"),
-            bg=self.host_bg,
-            fg="#0f172a",
+            text_color="#0f172a",
+            fg_color=self.host_bg,
         )
         self.name_label.pack(side=tk.LEFT, padx=(6, 0))
 
-        remove_label = tk.Label(
+        remove_label = ctk.CTkLabel(
             self.toolbar_frame,
             text="✕",
             font=("Arial", 9, "bold"),
-            bg=self.host_bg,
-            fg="#ef4444",
+            text_color="#ef4444",
+            fg_color=self.host_bg,
             cursor="hand2",
         )
         remove_label.pack(side=tk.RIGHT)
         remove_label.bind("<Button-1>", lambda _event: self.remove())
 
-        self.body_frame = tk.Frame(self.frame, bg=self.host_bg, bd=0)
+        self.body_frame = ctk.CTkFrame(self.frame, fg_color=self.host_bg, corner_radius=0)
         self.body_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=(4, 8))
 
         self.visual_canvas = tk.Canvas(
@@ -138,12 +140,12 @@ class CircuitComponent:
         )
         self.visual_canvas.pack(fill=tk.BOTH, expand=True)
 
-        self.detail_label = tk.Label(
+        self.detail_label = ctk.CTkLabel(
             self.body_frame,
             text="",
             font=("Arial", 8),
-            bg=self.host_bg,
-            fg="#475569",
+            text_color="#475569",
+            fg_color=self.host_bg,
             anchor="w",
             justify=tk.LEFT,
         )
@@ -224,17 +226,17 @@ class CircuitComponent:
             badge_bg = theme.accent
             badge_fg = theme.accent_text
         if self.frame:
-            self.frame.configure(bg=bg, highlightbackground=theme.border)
+            self.frame.configure(fg_color=bg, border_color=theme.border)
         if self.toolbar_frame:
-            self.toolbar_frame.configure(bg=bg)
+            self.toolbar_frame.configure(fg_color=bg)
         if self.body_frame:
-            self.body_frame.configure(bg=bg)
+            self.body_frame.configure(fg_color=bg)
         if self.code_badge:
-            self.code_badge.configure(bg=badge_bg, fg=badge_fg)
+            self.code_badge.configure(fg_color=badge_bg, text_color=badge_fg)
         if self.name_label:
-            self.name_label.configure(bg=bg, fg=fg_primary)
+            self.name_label.configure(fg_color=bg, text_color=fg_primary)
         if self.detail_label:
-            self.detail_label.configure(bg=bg, fg=fg_secondary)
+            self.detail_label.configure(fg_color=bg, text_color=fg_secondary)
         if self.visual_canvas:
             self.visual_canvas.configure(bg=bg)
         for dot in self.terminal_canvases:
@@ -713,7 +715,7 @@ class CircuitComponent:
         self.active = active
         border_color = self.theme.accent if active else self.host_bg
         thickness = 3 if active else 0
-        self.frame.configure(highlightbackground=border_color, highlightcolor=border_color, highlightthickness=thickness)
+        self.frame.configure(border_color=border_color, border_width=thickness)
         connector_color = self.theme.accent if active else "#7c3aed"
         for dot in self.terminal_canvases:
             dot.configure(bg=self.host_bg)
